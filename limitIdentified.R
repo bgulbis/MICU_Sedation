@@ -4,8 +4,7 @@
 ## Returns a list of PowerInsight Encounter Id's for patients who meet 
 ## criteria, to be used in next EDW query
 ##
-library(dplyr)
-library(stringr)
+source("library.R")
 
 ## read in the raw dosing service data files and join them, tidy the variables
 pts.identified <- list.files("Screen", pattern="^micu_patients", full.names=TRUE) %>%
