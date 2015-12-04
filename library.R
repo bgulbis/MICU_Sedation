@@ -5,6 +5,5 @@
 ## 
 library(dplyr)
 library(stringr)
-library(R.utils)
 library(lubridate)
-#library(BGTools)
+library(BGTools)

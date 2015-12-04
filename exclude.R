@@ -6,16 +6,8 @@
 source("library.R")
 source("limitIdentified.R")
 
-## function to check if a file is already gzipped and will zip if not
-gzip_files <- function(x) {
-    if(isGzipped(x) == FALSE) {
-        gzip(x)
-    }
-}
-
 ## compress medication data files
-list.files("Data", full.names=TRUE) %>%
-    lapply(gzip_files)
+gzip_files("Data")
 
 ## Find patients who meet inclusion criteria
 ## read in vent data
