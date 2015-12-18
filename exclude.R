@@ -4,7 +4,7 @@
 ## Evaluates data to determine which patients need to be excluded from the study
 ##
 source("library.R")
-source("limitIdentified.R")
+# source("limitIdentified.R")
 
 ## compress medication data files
 gzip_files("Data")
@@ -217,7 +217,7 @@ excl.proc <- filter(raw.procs, pie.id %in% pts.include$pie.id,
 pts.include <- filter(pts.include, !(pie.id %in% excl.proc$pie.id))
 
 ## split the patients up into groups
-edw.pie <- split(pts.include$pie.id, ceiling(seq_along(pts.include$pie.id)/1000))
+edw.pie <- split(pts.include$pie.id, ceiling(seq_along(pts.include$pie.id)/500))
 ## combine the id's in each group into a string, separated by semi-colon
 edw.pie <- lapply(edw.pie, str_c, collapse=";")
 
