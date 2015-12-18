@@ -13,13 +13,24 @@ pts.identified <- list.files("Screen", pattern="^micu_patients", full.names=TRUE
     transmute(pie.id = PowerInsight.Encounter.Id,
               unit.from = factor(Person.Location...Nurse.Unit..From., exclude=""),
               micu.los = as.numeric(Days.at.Location),
-              admit.type = factor(Admit.Type)) 
+              admit.type = factor(Admit.Type),
+              discharge.date = ymd_hms(Discharge.Date)) 
 
-pts.screen <- select(pts.identified, pie.id) %>%
+# using package readr
+# library(readr)
+# test <- list.files("Screen", pattern="^micu_patients", full.names=TRUE) %>%
+#     lapply(read_csv, col_types = cols(col_character(), col_character(), 
+#                                       col_character(), col_number(), 
+#                                       col_factor(), col_datetime("%Y/%m/%d %H:%M:%S"))) %>%
+#     bind_rows
+    
+pts.screen <- pts.identified %>%
+    filter(discharge.date <= mdy("8/31/2015")) %>%
+    select(pie.id) %>%
     distinct
 
 ## split the patients up into groups
-edw.pie <- split(pts.identified$pie.id, ceiling(seq_along(pts.identified$pie.id)/1000))
+edw.pie <- split(pts.screen$pie.id, ceiling(seq_along(pts.screen$pie.id)/500))
 ## combine the id's in each group into a string, separated by semi-colon
 edw.pie <- lapply(edw.pie, str_c, collapse=";")
 
