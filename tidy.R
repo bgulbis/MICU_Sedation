@@ -20,12 +20,6 @@ raw.demograph <- list.files("Data", pattern="^demographics", full.names=TRUE) %>
               disposition = factor(Discharge.Disposition, exclude = ""),
               fin = Formatted.Financial.Nbr) 
 
-# output patient list
-tmp <- raw.demograph %>%
-    select(fin, age:disposition)
-
-write.csv(tmp, "patient_list.csv", row.names = FALSE)
-
 # Get home medication data
 raw.hmmeds <- list.files("Data", pattern="^home_meds", full.names=TRUE) %>%
     lapply(read.csv, colClasses="character") %>%
@@ -74,4 +68,40 @@ raw.vitals <- list.files("Data", pattern="^vitals", full.names=TRUE) %>%
               vital = factor(Clinical.Event),
               result = as.numeric(Clinical.Event.Result),
               vital.datetime = mdy_hms(Clinical.Event.End.Date.Time))
+
+# output patient list
+tmp <- raw.demograph %>%
+    select(fin, age:disposition)
+
+write.csv(tmp, "patient_list.csv", row.names = FALSE)
+
+# patient demographics
+data.demograph <- raw.demograph %>%
+    select(-fin) 
+
+# get MICU admit / discharge date/time; some patients have two entries with a
+# slightly different admit or discharge date, will use the earliest admit date
+# and latest discharge date
+tmp.micu <- raw.locations %>%
+    filter(location == "Cullen 2 E Medical Intensive Care Unit") %>%
+    select(-location) %>%
+    group_by(pie.id) %>%
+    summarize(arrival = min(arrival),
+              depart = max(depart)) %>%
+    mutate(icu.los = as.numeric(difftime(depart, arrival, units = "days")))
+
+data.demograph <- inner_join(data.demograph, tmp.micu, by = "pie.id")
+
+# get vent duration
+tmp <- data.demograph %>%
+    select(pie.id, arrival, depart)
+
+tmp.vent <- raw.vent %>% 
+    group_by(pie.id) %>%
+    arrange(event.datetime) %>%
+    mutate(duration = as.numeric(difftime(lead(event.datetime), event.datetime, units="hours")),
+           vent = ifelse(event == "Vent Start Time" & lead(event) == "Vent Stop Time", TRUE, NA)) %>%
+    inner_join(tmp, by = "pie.id") %>%
+    filter(event == "Vent Stop Time" & (event.datetime < arrival | event.datetime > depart))
+    
 
