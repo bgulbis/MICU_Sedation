@@ -5,11 +5,14 @@
 
 source("library.R")
 
+# set the directory containing the data
+data.dir <- paste(base.dir, "Data", sep = "")
+
 # compress medication data files
-gzip_files("Data")
+gzip_files(data.dir)
 
 # Get demographics for included patients
-raw.demograph <- list.files("Data", pattern="^demographics", full.names=TRUE) %>%
+raw.demograph <- list.files(data.dir, pattern="^demographics", full.names=TRUE) %>%
     lapply(read.csv, colClasses="character") %>%
     bind_rows %>%
     transmute(pie.id = PowerInsight.Encounter.Id,
@@ -20,15 +23,25 @@ raw.demograph <- list.files("Data", pattern="^demographics", full.names=TRUE) %>
               disposition = factor(Discharge.Disposition, exclude = ""),
               fin = Formatted.Financial.Nbr) 
 
+# Get height and weight data
+raw.height.weight <- list.files(data.dir, pattern="^ht_wt", full.names=TRUE) %>%
+    lapply(read.csv, colClasses="character") %>%
+    bind_rows %>%
+    transmute(pie.id = PowerInsight.Encounter.Id,
+              event = factor(Clinical.Event),
+              result = as.numeric(Clinical.Event.Result),
+              unit = factor(Clinical.Event.Result.Units),
+              event.datetime = mdy_hms(Clinical.Event.End.Date.Time))
+
 # Get home medication data
-raw.hmmeds <- list.files("Data", pattern="^home_meds", full.names=TRUE) %>%
+raw.home.meds <- list.files(data.dir, pattern="^home_meds", full.names=TRUE) %>%
     lapply(read.csv, colClasses="character") %>%
     bind_rows %>%
     transmute(pie.id = PowerInsight.Encounter.Id,
               home.med = Order.Catalog.Mnemonic)
 
 # Get lab data
-raw.labs <- list.files("Data", pattern="^labs", full.names=TRUE) %>%
+raw.labs <- list.files(data.dir, pattern="^labs[^_exclude]", full.names=TRUE) %>%
     lapply(read.csv, colClasses="character") %>%
     bind_rows %>%
     transmute(pie.id = PowerInsight.Encounter.Id,
@@ -37,7 +50,7 @@ raw.labs <- list.files("Data", pattern="^labs", full.names=TRUE) %>%
               lab.datetime = mdy_hms(Clinical.Event.End.Date.Time))
 
 # Get location data
-raw.locations <- list.files("Data", pattern="^locations", full.names=TRUE) %>%
+raw.locations <- list.files(data.dir, pattern="^locations", full.names=TRUE) %>%
     lapply(read.csv, colClasses="character") %>%
     bind_rows %>%
     transmute(pie.id = PowerInsight.Encounter.Id,
@@ -47,7 +60,7 @@ raw.locations <- list.files("Data", pattern="^locations", full.names=TRUE) %>%
               depart = mdy_hms(Location.Depart.Date..amp..Time))
 
 # Get medication data
-raw.meds <- list.files("Data", pattern="^medications", full.names=TRUE) %>%
+raw.meds <- list.files(data.dir, pattern="^medications", full.names=TRUE) %>%
     lapply(read.csv, colClasses="character") %>%
     bind_rows %>%
     transmute(pie.id = PowerInsight.Encounter.Id,
@@ -61,7 +74,7 @@ raw.meds <- list.files("Data", pattern="^medications", full.names=TRUE) %>%
               iv.event = factor(IV.Event.Desc, exclude = ""))
 
 # Get vitals data
-raw.vitals <- list.files("Data", pattern="^vitals", full.names=TRUE) %>%
+raw.vitals <- list.files(data.dir, pattern="^vitals", full.names=TRUE) %>%
     lapply(read.csv, colClasses="character") %>%
     bind_rows %>%
     transmute(pie.id = PowerInsight.Encounter.Id,
@@ -102,6 +115,9 @@ tmp.vent <- raw.vent %>%
     mutate(duration = as.numeric(difftime(lead(event.datetime), event.datetime, units="hours")),
            vent = ifelse(event == "Vent Start Time" & lead(event) == "Vent Stop Time", TRUE, NA)) %>%
     inner_join(tmp, by = "pie.id") %>%
-    filter(event == "Vent Stop Time" & (event.datetime < arrival | event.datetime > depart))
+    # filter(event == "Vent Stop Time" & (event.datetime < arrival | event.datetime > depart))
+    mutate(vent.before = ifelse(event.datetime < arrival, TRUE, FALSE),
+           # before.time = ifelse(vent.before == TRUE, difftime(event.datetime, arrival, units = "hours"), NA),
+           vent.after = ifelse(event.datetime > depart, TRUE, FALSE))
     
 

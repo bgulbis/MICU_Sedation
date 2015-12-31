@@ -6,12 +6,15 @@
 source("library.R")
 # source("limitIdentified.R")
 
+# set the directory containing the data
+data.dir <- paste(base.dir, "Data", sep = "")
+
 ## compress medication data files
-gzip_files("Data")
+gzip_files(data.dir)
 
 ## Find patients who meet inclusion criteria
 ## read in vent data
-raw.vent <- list.files("Data", pattern="^vent", full.names=TRUE) %>%
+raw.vent <- list.files(data.dir, pattern="^vent", full.names=TRUE) %>%
     lapply(read.csv, colClasses="character") %>%
     bind_rows %>%
     transmute(pie.id = PowerInsight.Encounter.Id,
@@ -31,7 +34,7 @@ limit.vent <- group_by(raw.vent, pie.id) %>%
     distinct
 
 ## read in medication data and tidy variables
-raw.meds.incl <- list.files("Data", pattern="^meds_include", full.names=TRUE) %>%
+raw.meds.incl <- list.files(data.dir, pattern="^meds_include", full.names=TRUE) %>%
     lapply(read.csv, colClasses="character") %>%
     bind_rows %>%
     transmute(pie.id = PowerInsight.Encounter.Id,
@@ -110,7 +113,7 @@ pts.include <- filter(pts.include, !(pie.id %in% excl.meds$pie.id))
 levels.labs <- c("ur.preg", "ser.preg")
 
 ## read in lab data
-raw.labs.excl <- list.files("Data", pattern="^labs_exclude", full.names=TRUE) %>%
+raw.labs.excl <- list.files(data.dir, pattern="^labs_exclude", full.names=TRUE) %>%
     lapply(read.csv, colClasses="character") %>%
     bind_rows %>%
     transmute(pie.id = PowerInsight.Encounter.Id,
@@ -136,7 +139,7 @@ excl.preg <- filter(raw.labs.excl, pie.id %in% pts.include$pie.id,
 pts.include <- filter(pts.include, !(pie.id %in% excl.preg$pie.id))
 
 ## read in diagnosis codes
-raw.diagnosis <- list.files("Data", pattern="^diagnosis", full.names=TRUE) %>%
+raw.diagnosis <- list.files(data.dir, pattern="^diagnosis", full.names=TRUE) %>%
     lapply(read.csv, colClasses="character") %>%
     bind_rows %>%
     transmute(pie.id = PowerInsight.Encounter.Id,
@@ -184,7 +187,7 @@ excl.nodiag <- filter(pts.include, !(pie.id %in% raw.diagnosis$pie.id)) %>%
 pts.include <- filter(pts.include, !(pie.id %in% excl.nodiag$pie.id))
 
 ## read in MPP data
-raw.mpp <- list.files("Data", pattern="^mpp", full.names=TRUE) %>%
+raw.mpp <- list.files(data.dir, pattern="^mpp", full.names=TRUE) %>%
     lapply(read.csv, colClasses="character") %>%
     bind_rows %>%
     transmute(pie.id = PowerInsight.Encounter.Id,
@@ -199,7 +202,7 @@ excl.mpp <- filter(raw.mpp, pie.id %in% pts.include$pie.id,
 pts.include <- filter(pts.include, !(pie.id %in% excl.mpp$pie.id))
 
 ## read in procedure data to look for tracheostomy
-raw.procs <- list.files("Data", pattern="^procedure", full.names=TRUE) %>%
+raw.procs <- list.files(data.dir, pattern="^procedure", full.names=TRUE) %>%
     lapply(read.csv, colClasses="character") %>%
     bind_rows %>%
     transmute(pie.id = PowerInsight.Encounter.Id,

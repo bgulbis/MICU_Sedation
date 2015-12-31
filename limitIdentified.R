@@ -6,12 +6,15 @@
 ##
 source("library.R")
 
+# set the directory containing the data
+base.dir <- "U:/Research/Benzodiazepines in MICU/"
+
 ## read in the raw dosing service data files and join them, tidy the variables
-pts.identified <- list.files("Screen", pattern="^micu_patients", full.names=TRUE) %>%
+pts.identified <- list.files(paste(base.dir, "Screen", sep = ""), pattern = "^micu_patients", full.names = TRUE) %>%
     lapply(read.csv, colClasses="character") %>%
     bind_rows %>%
     transmute(pie.id = PowerInsight.Encounter.Id,
-              unit.from = factor(Person.Location...Nurse.Unit..From., exclude=""),
+              unit.from = factor(Person.Location...Nurse.Unit..From., exclude = ""),
               micu.los = as.numeric(Days.at.Location),
               admit.type = factor(Admit.Type),
               discharge.date = ymd_hms(Discharge.Date)) 
@@ -30,8 +33,8 @@ pts.screen <- pts.identified %>%
     distinct
 
 ## split the patients up into groups
-edw.pie <- split(pts.screen$pie.id, ceiling(seq_along(pts.screen$pie.id)/500))
+edw.pie <- split(pts.screen$pie.id, ceiling(seq_along(pts.screen$pie.id) / 500))
 ## combine the id's in each group into a string, separated by semi-colon
-edw.pie <- lapply(edw.pie, str_c, collapse=";")
+edw.pie <- lapply(edw.pie, str_c, collapse = ";")
 
 print(edw.pie)
