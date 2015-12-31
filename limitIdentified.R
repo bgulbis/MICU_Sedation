@@ -10,11 +10,13 @@ source("library.R")
 base.dir <- "U:/Research/Benzodiazepines in MICU/"
 
 ## read in the raw dosing service data files and join them, tidy the variables
-pts.identified <- list.files(paste(base.dir, "Screen", sep = ""), pattern = "^micu_patients", full.names = TRUE) %>%
+pts.identified <- list.files(paste(base.dir, "Screen", sep = ""), pattern = "^micu_patients 2015-12-31", full.names = TRUE) %>%
     lapply(read.csv, colClasses="character") %>%
     bind_rows %>%
     transmute(pie.id = PowerInsight.Encounter.Id,
               unit.from = factor(Person.Location...Nurse.Unit..From., exclude = ""),
+              arrival = ymd_hms(Location.Arrival.Date...Time),
+              depart = ymd_hms(Location.Depart.Date...Time),
               micu.los = as.numeric(Days.at.Location),
               admit.type = factor(Admit.Type),
               discharge.date = ymd_hms(Discharge.Date)) 

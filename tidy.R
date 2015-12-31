@@ -117,7 +117,14 @@ tmp.vent <- raw.vent %>%
     inner_join(tmp, by = "pie.id") %>%
     # filter(event == "Vent Stop Time" & (event.datetime < arrival | event.datetime > depart))
     mutate(vent.before = ifelse(event.datetime < arrival, TRUE, FALSE),
-           # before.time = ifelse(vent.before == TRUE, difftime(event.datetime, arrival, units = "hours"), NA),
-           vent.after = ifelse(event.datetime > depart, TRUE, FALSE))
+           before.time = difftime(event.datetime, arrival, units = "hours"),
+           vent.after = ifelse(event.datetime > depart, TRUE, FALSE),
+           after.time = difftime(event.datetime, depart, units = "hours")) 
+    # filter(vent.before == TRUE)
     
+tmp <- tmp.vent %>%
+    filter(before.time < -24) %>%
+    select(pie.id) %>%
+    distinct %>%
+    inner_join(tmp.vent, by = "pie.id")
 
