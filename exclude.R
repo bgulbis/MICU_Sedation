@@ -24,10 +24,12 @@ raw.vent <- list.files(data.dir, pattern="^vent", full.names=TRUE) %>%
 ## remove patients with < 24 hours vent
 ## ?? cumulative vent time or continuous 24 hrs
 ## ?? should it be within a certain amount of time of icu admission
-limit.vent <- group_by(raw.vent, pie.id) %>%
+tmp.vent <- group_by(raw.vent, pie.id) %>%
     arrange(event.datetime) %>%
     mutate(duration = as.numeric(difftime(lead(event.datetime), event.datetime, units="hours")),
-           vent = ifelse(event == "Vent Start Time" & lead(event) == "Vent Stop Time", TRUE, NA)) %>%
+           vent = ifelse(event == "Vent Start Time" & lead(event) == "Vent Stop Time", TRUE, NA))
+
+limit.vent <- tmp.vent %>%
     filter(duration >= 24,
            vent = TRUE) %>%
     select(pie.id) %>%
@@ -53,18 +55,47 @@ limit.meds <- filter(raw.meds.incl, str_detect(med, "lorazepam|midazolam|dexmede
     select(pie.id) %>%
     distinct
 
-pts.eligible <- filter(pts.identified, pie.id %in% limit.vent$pie.id,
+pts.eligible <- filter(pts.identified, pie.id %in% pts.screen$pie.id,
+                       pie.id %in% limit.vent$pie.id,
                        pie.id %in% limit.meds$pie.id) %>%
     select(pie.id) %>%
     distinct
 
 ## Remove patients meeting exlcusion criteria
 
+
+# Get location data
+raw.locations <- list.files(data.dir, pattern="^locations", full.names=TRUE) %>%
+    lapply(read.csv, colClasses="character") %>%
+    bind_rows %>%
+    transmute(pie.id = PowerInsight.Encounter.Id,
+              location = factor(Person.Location...Nurse.Unit..To., exclude = ""),
+              arrival = mdy_hms(Location.Arrival.Date..amp..Time))
+
 ## remove patients with more than one ICU admission
 excl.mult.icu <- filter(pts.identified, pie.id %in% pts.eligible$pie.id) %>%
     group_by(pie.id) %>%
     summarize(admits = n()) %>%
     filter(admits > 1)
+
+# for patients with more than one ICU admission, check whether there are
+# duplicate entries for same admission
+tmp.overlap <- pts.identified %>%
+    # filter(pie.id %in% excl.mult.icu$pie.id) %>%
+    inner_join(excl.mult.icu, by = "pie.id") %>%
+    group_by(pie.id) %>%
+    arrange(arrival) %>%
+    mutate(time.from.depart = difftime(arrival, lag(depart), units = "hours"),
+           same.unit = ifelse(unit.from == lag(unit.from), TRUE, FALSE))
+
+tmp.excl.forsure <- tmp.overlap %>%
+    filter(time.from.depart > 6, (unit.from != "Cullen 2 E Medical Intensive Care Unit" | same.unit == FALSE)) %>%
+    select(pie.id) %>%
+    distinct
+
+tmp.check.forsure <- filter(tmp.overlap, pie.id %in% tmp.excl.forsure$pie.id)
+
+tmp.check.notforsure <- filter(tmp.overlap, !(pie.id %in% tmp.excl.forsure$pie.id))
 
 pts.include <- inner_join(pts.identified, pts.eligible, by="pie.id") %>%
     filter(!(pie.id %in% excl.mult.icu$pie.id))
@@ -218,6 +249,29 @@ excl.proc <- filter(raw.procs, pie.id %in% pts.include$pie.id,
     distinct
 
 pts.include <- filter(pts.include, !(pie.id %in% excl.proc$pie.id))
+
+# check for patients who were on the vent outside of their MICU stay
+tmp.icu.stay <- pts.identified %>%
+    filter(pie.id %in% pts.include$pie.id) %>%
+    select(pie.id, arrival, depart)
+
+tmp.vent.outside <- tmp.vent %>%
+    # filter(pie.id %in% pts.include$pie.id)
+    inner_join(tmp.icu.stay, by = "pie.id") %>%
+    # filter(event == "Vent Stop Time" & (event.datetime < arrival | event.datetime > depart))
+    mutate(vent.before = ifelse(event.datetime < arrival, TRUE, FALSE),
+           before.time = difftime(event.datetime, arrival, units = "hours"),
+           vent.after = ifelse(event.datetime > depart, TRUE, FALSE),
+           after.time = difftime(event.datetime, depart, units = "hours")) 
+# filter(vent.before == TRUE)
+
+tmp.vent.before <- tmp.vent.outside %>%
+    filter(before.time < -24) %>%
+    select(pie.id) %>%
+    distinct
+
+tmp <- tmp.vent.outside %>%
+    filter(pie.id %in% tmp.vent.before$pie.id)
 
 ## split the patients up into groups
 edw.pie <- split(pts.include$pie.id, ceiling(seq_along(pts.include$pie.id)/500))
