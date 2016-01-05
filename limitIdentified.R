@@ -7,10 +7,10 @@
 source("library.R")
 
 # set the directory containing the data
-base.dir <- "U:/Research/Benzodiazepines in MICU/"
+# base.dir <- "U:/Projects/Benzodiazepines in MICU - Elizabeth Franco/"
 
 ## read in the raw dosing service data files and join them, tidy the variables
-pts.identified <- list.files(paste(base.dir, "Screen", sep = ""), pattern = "^micu_patients 2015-12-31", full.names = TRUE) %>%
+pts.identified <- list.files("Screen", pattern = "^micu_patients", full.names = TRUE) %>%
     lapply(read.csv, colClasses="character") %>%
     bind_rows %>%
     transmute(pie.id = PowerInsight.Encounter.Id,
