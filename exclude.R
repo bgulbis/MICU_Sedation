@@ -56,6 +56,7 @@ limit.meds <- filter(raw.meds.incl, str_detect(med, "lorazepam|midazolam|dexmede
     select(pie.id) %>%
     distinct
 
+# make a list of patients who are eligible to be screened
 pts.eligible <- filter(pts.identified, pie.id %in% pts.screen$pie.id,
                        pie.id %in% limit.vent$pie.id,
                        pie.id %in% limit.meds$pie.id) %>%
@@ -63,7 +64,6 @@ pts.eligible <- filter(pts.identified, pie.id %in% pts.screen$pie.id,
     distinct
 
 ## Remove patients meeting exlcusion criteria
-
 
 # Get location data
 raw.locations <- list.files(data.dir, pattern="^locations", full.names=TRUE) %>%
@@ -73,11 +73,41 @@ raw.locations <- list.files(data.dir, pattern="^locations", full.names=TRUE) %>%
               location = factor(Person.Location...Nurse.Unit..To., exclude = ""),
               arrival = mdy_hms(Location.Arrival.Date..amp..Time))
 
-## remove patients with more than one ICU admission
-excl.mult.icu <- filter(pts.identified, pie.id %in% pts.eligible$pie.id) %>%
+tmp.locations <- raw.locations %>%
+    filter(pie.id %in% pts.eligible$pie.id) %>%
     group_by(pie.id) %>%
-    summarize(admits = n()) %>%
-    filter(admits > 1)
+    arrange(arrival)
+
+## remove patients with more than one ICU admission
+excl.mult.icu <- tmp.locations %>%
+    filter(location == "Cullen 2 E Medical Intensive Care Unit") %>%
+    summarize(count.icu = n()) %>%
+    filter(count.icu > 1)
+
+# loop through locations and assign los
+location.duration <- function(location, arrival) {
+    lapply(seq_along(location), function(i) {
+        
+    })
+}
+
+tmp.excl.icu <- tmp.locations %>%
+    filter(pie.id %in% excl.mult.icu$pie.id) %>%
+    mutate(same.unit = ifelse(location == lag(location), TRUE, FALSE),
+           arrive.time = ifelse(location == lag(location), lag(arrival), arrival)) %>%
+    filter(same.unit == TRUE,
+           location == "Cullen 2 E Medical Intensive Care Unit") %>%
+    select(pie.id) %>%
+    distinct %>%
+    inner_join(tmp.locations, by = "pie.id") %>%
+    mutate(same.unit = ifelse(location == lag(location), TRUE, FALSE)) %>%
+    filter(location == "Cullen 2 E Medical Intensive Care Unit")
+    
+    
+# excl.mult.icu <- filter(pts.identified, pie.id %in% pts.eligible$pie.id) %>%
+#     group_by(pie.id) %>%
+#     summarize(admits = n()) %>%
+#     filter(admits > 1)
 
 # for patients with more than one ICU admission, check whether there are
 # duplicate entries for same admission
