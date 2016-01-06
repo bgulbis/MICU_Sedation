@@ -84,24 +84,20 @@ excl.mult.icu <- tmp.locations %>%
     summarize(count.icu = n()) %>%
     filter(count.icu > 1)
 
-# loop through locations and assign los
-location.duration <- function(location, arrival) {
-    lapply(seq_along(location), function(i) {
-        
-    })
-}
-
 tmp.excl.icu <- tmp.locations %>%
     filter(pie.id %in% excl.mult.icu$pie.id) %>%
     mutate(same.unit = ifelse(location == lag(location), TRUE, FALSE),
            arrive.time = ifelse(location == lag(location), lag(arrival), arrival)) %>%
-    filter(same.unit == TRUE,
-           location == "Cullen 2 E Medical Intensive Care Unit") %>%
-    select(pie.id) %>%
-    distinct %>%
-    inner_join(tmp.locations, by = "pie.id") %>%
-    mutate(same.unit = ifelse(location == lag(location), TRUE, FALSE)) %>%
-    filter(location == "Cullen 2 E Medical Intensive Care Unit")
+    mutate(unit.num = ifelse(arrival == first(arrival), "first", "not first")) %>%
+    mutate(unit.num = ifelse(unit.num == "first", unit.num, 
+                             ifelse(is.na(same.unit) | same.unit == FALSE, "not same", "same")))
+#     filter(same.unit == TRUE,
+#            location == "Cullen 2 E Medical Intensive Care Unit") %>%
+#     select(pie.id) %>%
+#     distinct %>%
+#     inner_join(tmp.locations, by = "pie.id") %>%
+#     mutate(same.unit = ifelse(location == lag(location), TRUE, FALSE)) %>%
+#     filter(location == "Cullen 2 E Medical Intensive Care Unit")
     
     
 # excl.mult.icu <- filter(pts.identified, pie.id %in% pts.eligible$pie.id) %>%
