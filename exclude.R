@@ -79,51 +79,20 @@ tmp.locations <- raw.locations %>%
     arrange(arrival)
 
 ## remove patients with more than one ICU admission
+# combines multiple rows of data when the patient didn't leave ICU
 excl.mult.icu <- tmp.locations %>%
+    mutate(diff.unit = ifelse(is.na(location) | is.na(lag(location)) | location != lag(location), TRUE, FALSE),
+           unit.count = cumsum(diff.unit)) %>%
+    ungroup %>%
+    group_by(pie.id, unit.count) %>%
+    summarize(location = first(location),
+              arrival = first(arrival)) %>%
+    ungroup %>%
+    group_by(pie.id) %>%
     filter(location == "Cullen 2 E Medical Intensive Care Unit") %>%
     summarize(count.icu = n()) %>%
     filter(count.icu > 1)
-
-tmp.excl.icu <- tmp.locations %>%
-    filter(pie.id %in% excl.mult.icu$pie.id) %>%
-    mutate(same.unit = ifelse(location == lag(location), TRUE, FALSE),
-           arrive.time = ifelse(location == lag(location), lag(arrival), arrival)) %>%
-    mutate(unit.num = ifelse(arrival == first(arrival), "first", "not first")) %>%
-    mutate(unit.num = ifelse(unit.num == "first", unit.num, 
-                             ifelse(is.na(same.unit) | same.unit == FALSE, "not same", "same")))
-#     filter(same.unit == TRUE,
-#            location == "Cullen 2 E Medical Intensive Care Unit") %>%
-#     select(pie.id) %>%
-#     distinct %>%
-#     inner_join(tmp.locations, by = "pie.id") %>%
-#     mutate(same.unit = ifelse(location == lag(location), TRUE, FALSE)) %>%
-#     filter(location == "Cullen 2 E Medical Intensive Care Unit")
     
-    
-# excl.mult.icu <- filter(pts.identified, pie.id %in% pts.eligible$pie.id) %>%
-#     group_by(pie.id) %>%
-#     summarize(admits = n()) %>%
-#     filter(admits > 1)
-
-# for patients with more than one ICU admission, check whether there are
-# duplicate entries for same admission
-tmp.overlap <- pts.identified %>%
-    # filter(pie.id %in% excl.mult.icu$pie.id) %>%
-    inner_join(excl.mult.icu, by = "pie.id") %>%
-    group_by(pie.id) %>%
-    arrange(arrival) %>%
-    mutate(time.from.depart = difftime(arrival, lag(depart), units = "hours"),
-           same.unit = ifelse(unit.from == lag(unit.from), TRUE, FALSE))
-
-tmp.excl.forsure <- tmp.overlap %>%
-    filter(time.from.depart > 6, (unit.from != "Cullen 2 E Medical Intensive Care Unit" | same.unit == FALSE)) %>%
-    select(pie.id) %>%
-    distinct
-
-tmp.check.forsure <- filter(tmp.overlap, pie.id %in% tmp.excl.forsure$pie.id)
-
-tmp.check.notforsure <- filter(tmp.overlap, !(pie.id %in% tmp.excl.forsure$pie.id))
-
 pts.include <- inner_join(pts.identified, pts.eligible, by="pie.id") %>%
     filter(!(pie.id %in% excl.mult.icu$pie.id))
 
