@@ -76,19 +76,21 @@ raw.locations <- list.files(data.dir, pattern="^locations", full.names=TRUE) %>%
 tmp.locations <- raw.locations %>%
     filter(pie.id %in% pts.eligible$pie.id) %>%
     group_by(pie.id) %>%
-    arrange(arrival)
-
-## remove patients with more than one ICU admission
-# combines multiple rows of data when the patient didn't leave ICU
-excl.mult.icu <- tmp.locations %>%
+    arrange(arrival) %>%
     mutate(diff.unit = ifelse(is.na(location) | is.na(lag(location)) | location != lag(location), TRUE, FALSE),
-           unit.count = cumsum(diff.unit)) %>%
+       unit.count = cumsum(diff.unit)) %>%
     ungroup %>%
     group_by(pie.id, unit.count) %>%
     summarize(location = first(location),
               arrival = first(arrival)) %>%
+    mutate(depart = lead(arrival),
+           unit.los = difftime(depart, arrival, units = "days")) %>%
     ungroup %>%
-    group_by(pie.id) %>%
+    group_by(pie.id)
+    
+## remove patients with more than one ICU admission
+# combines multiple rows of data when the patient didn't leave ICU
+excl.mult.icu <- tmp.locations %>%
     filter(location == "Cullen 2 E Medical Intensive Care Unit") %>%
     summarize(count.icu = n()) %>%
     filter(count.icu > 1)
@@ -112,8 +114,21 @@ tmp.icu <- c("Hermann 3 Shock Trauma Intensive Care Unit",
              "Jones 7 J Elective Neuro ICU",
              "Jones 8 W Burn Unit")
 
-excl.icu <- pts.include %>%
-    filter(unit.from %in% tmp.icu) %>%
+# excl.icu <- pts.include %>%
+#     filter(unit.from %in% tmp.icu) %>%
+#     select(pie.id) %>%
+#     distinct
+tmp.icu.arrive <- tmp.locations %>%
+    filter(pie.id %in% pts.include$pie.id,
+           location == "Cullen 2 E Medical Intensive Care Unit") %>%
+    rename(micu.arrive = arrival) %>%
+    select(pie.id, micu.arrive)
+
+excl.icu <- tmp.locations %>%
+    filter(pie.id %in% pts.include$pie.id) %>%
+    left_join(tmp.icu.arrive, by = "pie.id") %>%
+    filter(location %in% tmp.icu,
+           arrival < micu.arrive) %>%
     select(pie.id) %>%
     distinct
 
