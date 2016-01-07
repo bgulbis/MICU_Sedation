@@ -71,7 +71,9 @@ raw.locations <- list.files(data.dir, pattern="^locations", full.names=TRUE) %>%
     bind_rows %>%
     transmute(pie.id = PowerInsight.Encounter.Id,
               location = factor(Person.Location...Nurse.Unit..To., exclude = ""),
-              arrival = mdy_hms(Location.Arrival.Date..amp..Time))
+              unit.from = factor(Person.Location...Nurse.Unit..From., exclude = ""),
+              arrival = mdy_hms(Location.Arrival.Date..amp..Time),
+              depart = mdy_hms(Location.Depart.Date..amp..Time))
 
 tmp.locations <- raw.locations %>%
     filter(pie.id %in% pts.eligible$pie.id) %>%
@@ -82,12 +84,13 @@ tmp.locations <- raw.locations %>%
     ungroup %>%
     group_by(pie.id, unit.count) %>%
     summarize(location = first(location),
-              arrival = first(arrival)) %>%
-    mutate(depart = lead(arrival),
-           unit.los = difftime(depart, arrival, units = "days")) %>%
+              arrival = first(arrival),
+              depart = last(depart)) %>%
+    mutate(calc.depart = lead(arrival),
+           unit.los = ifelse(is.na(calc.depart), difftime(depart, arrival, units = "days"), difftime(calc.depart, arrival, units = "days"))) %>%
     ungroup %>%
     group_by(pie.id)
-    
+
 ## remove patients with more than one ICU admission
 # combines multiple rows of data when the patient didn't leave ICU
 excl.mult.icu <- tmp.locations %>%
@@ -95,8 +98,12 @@ excl.mult.icu <- tmp.locations %>%
     summarize(count.icu = n()) %>%
     filter(count.icu > 1)
     
-pts.include <- inner_join(pts.identified, pts.eligible, by="pie.id") %>%
-    filter(!(pie.id %in% excl.mult.icu$pie.id))
+pts.include <- pts.identified %>%
+    filter(pie.id %in% pts.eligible$pie.id,
+           !(pie.id %in% excl.mult.icu$pie.id)) %>%
+    group_by(pie.id) %>%
+    summarize(admit.type = first(admit.type),
+              discharge.datetime = first(discharge.datetime))
 
 ## exclude patients who came from another facility
 excl.transfer <- pts.include %>%
@@ -135,8 +142,10 @@ excl.icu <- tmp.locations %>%
 pts.include <- filter(pts.include, !(pie.id %in% excl.icu$pie.id))
 
 ## remove patients with MICU stay < 1 day
-excl.los <- pts.include %>%
-    filter(micu.los < 1) %>%
+excl.los <- tmp.locations %>%
+    filter(pie.id %in% pts.include$pie.id,
+           location == "Cullen 2 E Medical Intensive Care Unit",
+           unit.los < 1) %>%
     select(pie.id) %>%
     distinct
 
@@ -262,27 +271,27 @@ excl.proc <- filter(raw.procs, pie.id %in% pts.include$pie.id,
 pts.include <- filter(pts.include, !(pie.id %in% excl.proc$pie.id))
 
 # check for patients who were on the vent outside of their MICU stay
-tmp.icu.stay <- pts.identified %>%
-    filter(pie.id %in% pts.include$pie.id) %>%
-    select(pie.id, arrival, depart)
-
-tmp.vent.outside <- tmp.vent %>%
-    # filter(pie.id %in% pts.include$pie.id)
-    inner_join(tmp.icu.stay, by = "pie.id") %>%
-    # filter(event == "Vent Stop Time" & (event.datetime < arrival | event.datetime > depart))
-    mutate(vent.before = ifelse(event.datetime < arrival, TRUE, FALSE),
-           before.time = difftime(event.datetime, arrival, units = "hours"),
-           vent.after = ifelse(event.datetime > depart, TRUE, FALSE),
-           after.time = difftime(event.datetime, depart, units = "hours")) 
-# filter(vent.before == TRUE)
-
-tmp.vent.before <- tmp.vent.outside %>%
-    filter(before.time < -24) %>%
-    select(pie.id) %>%
-    distinct
-
-tmp <- tmp.vent.outside %>%
-    filter(pie.id %in% tmp.vent.before$pie.id)
+# tmp.icu.stay <- pts.identified %>%
+#     filter(pie.id %in% pts.include$pie.id) %>%
+#     select(pie.id, arrival, depart)
+# 
+# tmp.vent.outside <- tmp.vent %>%
+#     # filter(pie.id %in% pts.include$pie.id)
+#     inner_join(tmp.icu.stay, by = "pie.id") %>%
+#     # filter(event == "Vent Stop Time" & (event.datetime < arrival | event.datetime > depart))
+#     mutate(vent.before = ifelse(event.datetime < arrival, TRUE, FALSE),
+#            before.time = difftime(event.datetime, arrival, units = "hours"),
+#            vent.after = ifelse(event.datetime > depart, TRUE, FALSE),
+#            after.time = difftime(event.datetime, depart, units = "hours")) 
+# # filter(vent.before == TRUE)
+# 
+# tmp.vent.before <- tmp.vent.outside %>%
+#     filter(before.time < -24) %>%
+#     select(pie.id) %>%
+#     distinct
+# 
+# tmp <- tmp.vent.outside %>%
+#     filter(pie.id %in% tmp.vent.before$pie.id)
 
 ## split the patients up into groups
 edw.pie <- split(pts.include$pie.id, ceiling(seq_along(pts.include$pie.id)/500))

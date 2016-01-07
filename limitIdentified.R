@@ -15,11 +15,8 @@ pts.identified <- list.files("Screen", pattern = "^micu_patients", full.names = 
     bind_rows %>%
     transmute(pie.id = PowerInsight.Encounter.Id,
               unit.from = factor(Person.Location...Nurse.Unit..From., exclude = ""),
-              arrival = ymd_hms(Location.Arrival.Date...Time),
-              depart = ymd_hms(Location.Depart.Date...Time),
-              micu.los = as.numeric(Days.at.Location),
               admit.type = factor(Admit.Type),
-              discharge.date = ymd_hms(Discharge.Date)) 
+              discharge.datetime = ymd_hms(Discharge.Date...Time)) 
 
 # using package readr
 # library(readr)
@@ -30,7 +27,7 @@ pts.identified <- list.files("Screen", pattern = "^micu_patients", full.names = 
 #     bind_rows
     
 pts.screen <- pts.identified %>%
-    filter(discharge.date <= mdy("8/31/2015")) %>%
+    filter(discharge.datetime < mdy("9/1/2015")) %>%
     select(pie.id) %>%
     distinct
 
