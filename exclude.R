@@ -25,14 +25,32 @@ raw.vent <- list.files(data.dir, pattern="^vent", full.names=TRUE) %>%
 ## remove patients with < 24 hours vent
 ## ?? cumulative vent time or continuous 24 hrs
 ## ?? should it be within a certain amount of time of icu admission
-tmp.vent <- group_by(raw.vent, pie.id) %>%
+tmp.discharge <- pts.identified %>%
+    select(pie.id, discharge.datetime) %>%
+    distinct
+
+tmp.vent <- raw.vent %>%
+    filter(!is.na(event.datetime)) %>%
+    group_by(pie.id) %>%
     arrange(event.datetime) %>%
-    mutate(duration = as.numeric(difftime(lead(event.datetime), event.datetime, units="hours")),
-           vent = ifelse(event == "Vent Start Time" & lead(event) == "Vent Stop Time", TRUE, NA))
+    mutate(diff.event = ifelse(is.na(lag(event)) | event != lag(event), TRUE, FALSE),
+           event.count = cumsum(diff.event)) %>%
+    ungroup %>%
+    group_by(pie.id, event.count) %>%
+    summarize(event = first(event),
+              first.event.datetime = first(event.datetime), 
+              last.event.datetime = last(event.datetime)) %>%
+    ungroup %>%
+    group_by(pie.id) %>%
+    left_join(tmp.discharge, by = "pie.id") %>%
+    mutate(stop.datetime = lead(last.event.datetime),
+           vent.duration = ifelse(is.na(stop.datetime), difftime(discharge.datetime, first.event.datetime, units = "hours"), difftime(stop.datetime, first.event.datetime, units = "hours"))) %>%
+    filter(event == "Vent Start Time") %>%
+    select(-event.count, -event, -last.event.datetime) %>%
+    rename(start.datetime = first.event.datetime)
 
 limit.vent <- tmp.vent %>%
-    filter(duration >= 24,
-           vent = TRUE) %>%
+    filter(vent.duration >= 24) %>%
     select(pie.id) %>%
     distinct
 
@@ -91,10 +109,11 @@ tmp.locations <- raw.locations %>%
     ungroup %>%
     group_by(pie.id)
 
+micu <- "Cullen 2 E Medical Intensive Care Unit"
 ## remove patients with more than one ICU admission
 # combines multiple rows of data when the patient didn't leave ICU
 excl.mult.icu <- tmp.locations %>%
-    filter(location == "Cullen 2 E Medical Intensive Care Unit") %>%
+    filter(location == micu) %>%
     summarize(count.icu = n()) %>%
     filter(count.icu > 1)
     
@@ -271,27 +290,15 @@ excl.proc <- filter(raw.procs, pie.id %in% pts.include$pie.id,
 pts.include <- filter(pts.include, !(pie.id %in% excl.proc$pie.id))
 
 # check for patients who were on the vent outside of their MICU stay
-# tmp.icu.stay <- pts.identified %>%
-#     filter(pie.id %in% pts.include$pie.id) %>%
-#     select(pie.id, arrival, depart)
-# 
-# tmp.vent.outside <- tmp.vent %>%
-#     # filter(pie.id %in% pts.include$pie.id)
-#     inner_join(tmp.icu.stay, by = "pie.id") %>%
-#     # filter(event == "Vent Stop Time" & (event.datetime < arrival | event.datetime > depart))
-#     mutate(vent.before = ifelse(event.datetime < arrival, TRUE, FALSE),
-#            before.time = difftime(event.datetime, arrival, units = "hours"),
-#            vent.after = ifelse(event.datetime > depart, TRUE, FALSE),
-#            after.time = difftime(event.datetime, depart, units = "hours")) 
-# # filter(vent.before == TRUE)
-# 
-# tmp.vent.before <- tmp.vent.outside %>%
-#     filter(before.time < -24) %>%
-#     select(pie.id) %>%
-#     distinct
-# 
-# tmp <- tmp.vent.outside %>%
-#     filter(pie.id %in% tmp.vent.before$pie.id)
+excl.vent.icu <- tmp.locations %>%
+    filter(pie.id %in% pts.include$pie.id,
+           location == micu) %>%
+    inner_join(tmp.vent, by = "pie.id") %>%
+    mutate(admit.vent.stop = difftime(stop.datetime, arrival, units = "hours"),
+           depart.vent.start = ifelse(is.na(calc.depart), difftime(start.datetime, depart, units = "hours"), difftime(start.datetime, calc.depart, units = "hours"))) %>%
+    filter(admit.vent.stop < 0 | depart.vent.start > 0)
+
+pts.include <- filter(pts.include, !(pie.id %in% excl.vent.icu$pie.id))
 
 ## split the patients up into groups
 edw.pie <- split(pts.include$pie.id, ceiling(seq_along(pts.include$pie.id)/500))
