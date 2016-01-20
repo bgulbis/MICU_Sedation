@@ -76,7 +76,7 @@ raw.vitals <- list.files(data.dir, pattern="^vitals", full.names=TRUE) %>%
 tmp <- raw.demograph %>%
     select(fin, age:disposition)
 
-write.csv(tmp, "patient_list.csv", row.names = FALSE)
+# write.csv(tmp, "patient_list.csv", row.names = FALSE)
 
 # patient demographics
 data.demograph <- raw.demograph %>%
@@ -84,4 +84,63 @@ data.demograph <- raw.demograph %>%
 
 # get MICU LOS
 
+tmp.micu.admit <- tmp.locations %>%
+    filter(pie.id %in% pts.include$pie.id,
+           location == micu)
+
+tmp.los <- tmp.micu.admit %>%
+    select(pie.id, unit.los)
+
 # get vent duration
+
+tmp.vent.duration <- tmp.vent %>%
+    filter(pie.id %in% pts.include$pie.id) %>%
+    group_by(pie.id) %>%
+    summarize(vent.duration = sum(vent.duration))
+
+data.demograph <- data.demograph %>%
+    inner_join(tmp.los, by = "pie.id") %>%
+    inner_join(tmp.vent.duration, by = "pie.id")
+
+# get height and weight
+
+tmp.weight <- raw.height.weight %>%
+    filter(pie.id %in% pts.include$pie.id,
+           event == "Weight",
+           unit == "kg") %>%
+    group_by(pie.id) %>%
+    arrange(event.datetime) %>%
+    summarize(weight = first(result))
+
+tmp.height <- raw.height.weight %>%
+    filter(pie.id %in% pts.include$pie.id,
+           event == "Height",
+           unit == "cm") %>%
+    group_by(pie.id) %>%
+    arrange(event.datetime) %>%
+    summarize(height = first(result))
+
+data.demograph <- data.demograph %>%
+    inner_join(tmp.weight, by = "pie.id") %>%
+    inner_join(tmp.height, by = "pie.id")
+
+# get PMH
+
+ref.pmh.codes <- read.csv("Lookup/pmh_codes.csv", colClasses = "character")
+
+tmp.pmh.codes <- icd9_lookup(ref.pmh.codes) %>%
+    ungroup %>%
+    mutate(disease.state = factor(disease.state))
+
+data.pmh <- raw.diagnosis %>%
+    filter(pie.id %in% pts.include$pie.id,
+           diag.type == "Final") %>%
+    inner_join(tmp.pmh.codes, by = c("diag.code" = "icd9.code")) %>%
+    group_by(pie.id, disease.state) %>%
+    select(pie.id, disease.state) %>%
+    distinct %>%
+    mutate(value = TRUE) %>%
+    spread(disease.state, value, fill = FALSE, drop = FALSE) %>%
+    full_join(select(pts.include, pie.id), by = "pie.id") %>%
+    mutate_each(funs(ifelse(is.na(.), FALSE, .)), arf:seizure)
+    

@@ -109,7 +109,6 @@ tmp.locations <- raw.locations %>%
     ungroup %>%
     group_by(pie.id)
 
-micu <- "Cullen 2 E Medical Intensive Care Unit"
 ## remove patients with more than one ICU admission
 # combines multiple rows of data when the patient didn't leave ICU
 excl.mult.icu <- tmp.locations %>%
@@ -163,7 +162,7 @@ pts.include <- filter(pts.include, !(pie.id %in% excl.icu$pie.id))
 ## remove patients with MICU stay < 1 day
 excl.los <- tmp.locations %>%
     filter(pie.id %in% pts.include$pie.id,
-           location == "Cullen 2 E Medical Intensive Care Unit",
+           location == micu,
            unit.los < 1) %>%
     select(pie.id) %>%
     distinct
@@ -220,25 +219,28 @@ raw.diagnosis <- list.files(data.dir, pattern="^diagnosis", full.names=TRUE) %>%
 ## read in exclusion codes
 ref.excl.codes <- read.csv("Lookup/exclusion_codes.csv", colClasses = "character")
 
-## read in ICD9-CCS codes
-ref.ccs.diag <- read.csv("Lookup/icd9_ccs_diagnosis.csv", colClasses="character") %>%
-    transmute(ccs.code = as.numeric(CCS.CATEGORY),
-              icd9.code = ICD9.CODE.FRMT) 
+# ## read in ICD9-CCS codes
+# ref.ccs.diag <- read.csv("Lookup/icd9_ccs_diagnosis.csv", colClasses="character") %>%
+#     transmute(ccs.code = as.numeric(CCS.CATEGORY),
+#               icd9.code = ICD9.CODE.FRMT) 
+# 
+# ## find the ICD9 codes for the desired exclusions by CCS code
+# tmp.ccs <- filter(ref.excl.codes, type == "CCS") %>% 
+#     mutate(ccs.code = as.numeric(code)) %>%
+#     inner_join(ref.ccs.diag, by="ccs.code")
+# 
+# ## ICD9 codes for non-CCS code exclusions
+# tmp.icd9 <- filter(ref.excl.codes, type=="ICD9") %>% 
+#     mutate(icd9.code = code) %>%
+#     inner_join(ref.ccs.diag, by="icd9.code")
+# 
+# ## create one table with all ICD9 codes that should be excluded
+# tmp.excl.icd9 <- bind_rows(tmp.ccs, tmp.icd9) %>%
+#     select(disease.state, icd9.code) %>%
+#     group_by(disease.state)
 
-## find the ICD9 codes for the desired exclusions by CCS code
-tmp.ccs <- filter(ref.excl.codes, type == "CCS") %>% 
-    mutate(ccs.code = as.numeric(code)) %>%
-    inner_join(ref.ccs.diag, by="ccs.code")
+tmp.excl.icd9 <- icd9_lookup(ref.excl.codes)
 
-## ICD9 codes for non-CCS code exclusions
-tmp.icd9 <- filter(ref.excl.codes, type=="ICD9") %>% 
-    mutate(icd9.code = code) %>%
-    inner_join(ref.ccs.diag, by="icd9.code")
-
-## create one table with all ICD9 codes that should be excluded
-tmp.excl.icd9 <- bind_rows(tmp.ccs, tmp.icd9) %>%
-    select(disease.state, icd9.code) %>%
-    group_by(disease.state)
 
 ## check for exclusions diagnosis: pregnant, alcohol withdrawal, cardiac arrest,
 ## status epilepticus
