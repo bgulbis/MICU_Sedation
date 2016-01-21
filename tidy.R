@@ -5,12 +5,6 @@
 
 source("library.R")
 
-# set the directory containing the data
-data.dir <- "Data"
-
-# compress medication data files
-gzip_files(data.dir)
-
 # Get demographics for included patients
 raw.demograph <- list.files(data.dir, pattern="^demographics", full.names=TRUE) %>%
     lapply(read.csv, colClasses="character") %>%
@@ -72,17 +66,17 @@ raw.vitals <- list.files(data.dir, pattern="^vitals", full.names=TRUE) %>%
               result = as.numeric(Clinical.Event.Result),
               vital.datetime = mdy_hms(Clinical.Event.End.Date.Time))
 
-# output patient list
+# output patient list ----------------------------------------------------------
 tmp <- raw.demograph %>%
     select(fin, age:disposition)
 
 # write.csv(tmp, "patient_list.csv", row.names = FALSE)
 
-# patient demographics
+# patient demographics ---------------------------------------------------------
 data.demograph <- raw.demograph %>%
     select(-fin) 
 
-# get MICU LOS
+# get MICU LOS -----------------------------------------------------------------
 
 tmp.micu.admit <- tmp.locations %>%
     filter(pie.id %in% pts.include$pie.id,
@@ -91,7 +85,7 @@ tmp.micu.admit <- tmp.locations %>%
 tmp.los <- tmp.micu.admit %>%
     select(pie.id, unit.los)
 
-# get vent duration
+# get vent duration ------------------------------------------------------------
 
 tmp.vent.duration <- tmp.vent %>%
     filter(pie.id %in% pts.include$pie.id) %>%
@@ -102,7 +96,7 @@ data.demograph <- data.demograph %>%
     inner_join(tmp.los, by = "pie.id") %>%
     inner_join(tmp.vent.duration, by = "pie.id")
 
-# get height and weight
+# get height and weight --------------------------------------------------------
 
 tmp.weight <- raw.height.weight %>%
     filter(pie.id %in% pts.include$pie.id,
@@ -124,7 +118,7 @@ data.demograph <- data.demograph %>%
     inner_join(tmp.weight, by = "pie.id") %>%
     inner_join(tmp.height, by = "pie.id")
 
-# get PMH
+# get PMH ----------------------------------------------------------------------
 
 ref.pmh.codes <- read.csv("Lookup/pmh_codes.csv", colClasses = "character")
 
@@ -144,3 +138,14 @@ data.pmh <- raw.diagnosis %>%
     full_join(select(pts.include, pie.id), by = "pie.id") %>%
     mutate_each(funs(ifelse(is.na(.), FALSE, .)), arf:seizure)
     
+# get home medications ---------------------------------------------------------
+
+# get list of desired home medications by class
+ref.home.meds <- read.csv("Lookup/home_meds.csv", colClasses = "character")
+
+# lookup the meds which are in those classes
+tmp.meds.list <- med_lookup(ref.home.meds$med.class) 
+
+tmp.home.meds <- raw.home.meds %>%
+    filter(pie.id %in% pts.include$pie.id) %>%
+    mutate(contains = str_detect(home.med, regex(tmp.meds.list$med.name, ignore_case = TRUE)))

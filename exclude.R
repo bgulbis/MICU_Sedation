@@ -6,13 +6,6 @@
 source("library.R")
 # source("limitIdentified.R")
 
-# set the directory containing the data
-# data.dir <- paste(base.dir, "Data", sep = "")
-data.dir <- "Data"
-
-## compress medication data files
-gzip_files(data.dir)
-
 ## Find patients who meet inclusion criteria
 ## read in vent data
 raw.vent <- list.files(data.dir, pattern="^vent", full.names=TRUE) %>%
