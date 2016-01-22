@@ -201,10 +201,91 @@ tmp.lfts <- raw.labs %>%
            lab.datetime <= leave) %>%
     group_by(pie.id, lab) %>%
     arrange(lab.datetime) %>%
-    select(pie.id:lab.datetime)
+    select(pie.id:lab.datetime) %>%
+    mutate(result = as.numeric(result)) %>%
+    filter(!is.na(result))
 
 data.labs.lfts.long <- tmp.lfts
 
 # APACHE-II --------------------------------------------------------------------
 # most abnormal values in first 24 hours of ICU stay
-    
+
+labs.list <- c("Creatinine Lvl", "Glasgow Coma Score", "PaO2", "POC A pH", 
+               "POC A PO2", "Potassium Lvl", "Sodium Lvl", "WBC", "Hct")
+
+tmp.labs <- raw.labs
+
+tmp <- !is.na(str_extract(levels(tmp.labs$lab),"POC A PO2"))
+levels(tmp.labs$lab)[tmp == TRUE] <- "PaO2"
+
+# get min and max lab values in first 24 hours of ICU admission
+tmp.apache.labs <- raw.labs %>%
+    inner_join(tmp.micu.admit, by = "pie.id") %>%
+    filter(pie.id %in% pts.include$pie.id,
+           lab %in% labs.list,
+           lab.datetime >= arrival,
+           lab.datetime <= arrival + days(1)) %>%
+    group_by(pie.id, lab) %>%
+    mutate(result = as.numeric(result)) %>%
+    filter(!is.na(result)) %>%
+    summarize(min.lab = min(result),
+              max.lab = max(result))
+
+tmp.min <- tmp.apache.labs %>%
+    select(-max.lab) %>%
+    spread(lab, min.lab)
+
+tmp.max <- tmp.apache.labs %>%
+    select(-min.lab) %>%
+    spread(lab, max.lab)
+
+tmp.apache.labs <- inner_join(tmp.min, tmp.max, by = "pie.id")
+
+names(tmp.apache.labs) <- str_replace_all(names(tmp.apache.labs), "\\.x", "\\.min")
+names(tmp.apache.labs) <- str_replace_all(names(tmp.apache.labs), "\\.y", "\\.max")
+names(tmp.apache.labs) <- str_replace_all(names(tmp.apache.labs), "Creatinine Lvl", "scr")
+names(tmp.apache.labs) <- str_replace_all(names(tmp.apache.labs), "Glasgow Coma Score", "gcs")
+names(tmp.apache.labs) <- str_replace_all(names(tmp.apache.labs), "PaO2", "pao2")
+names(tmp.apache.labs) <- str_replace_all(names(tmp.apache.labs), "POC A pH", "ph")
+names(tmp.apache.labs) <- str_replace_all(names(tmp.apache.labs), "Potassium Lvl", "k")
+names(tmp.apache.labs) <- str_replace_all(names(tmp.apache.labs), "Sodium Lvl", "na")
+names(tmp.apache.labs) <- str_replace_all(names(tmp.apache.labs), "WBC", "wbc")
+
+# combine all temperatures and MAPs
+tmp.vitals <- raw.vitals
+
+tmp <- !is.na(str_extract(levels(tmp.vitals$vital),"Temperature"))
+levels(tmp.vitals$vital)[tmp == TRUE] <- "Temperature"
+
+tmp <- !is.na(str_extract(levels(tmp.vitals$vital),"Mean Arterial Pressure"))
+levels(tmp.vitals$vital)[tmp == TRUE] <- "Mean Arterial Pressure"
+
+# get min and max vital values in first 24 hours of ICU admission
+tmp.apache.vitals <- tmp.vitals %>%
+    inner_join(tmp.micu.admit, by = "pie.id") %>%
+    filter(pie.id %in% pts.include$pie.id,
+           vital.datetime >= arrival,
+           vital.datetime <= arrival + days(1)) %>%
+    group_by(pie.id, vital) %>%
+    filter(!is.na(result)) %>%
+    summarize(min.vital = min(result),
+              max.vital = max(result))
+
+tmp.min <- tmp.apache.vitals %>%
+    select(-max.vital) %>%
+    spread(vital, min.vital)
+
+tmp.max <- tmp.apache.vitals %>%
+    select(-min.vital) %>%
+    spread(vital, max.vital)
+
+tmp.apache.vitals <- inner_join(tmp.min, tmp.max, by = "pie.id")
+
+names(tmp.apache.vitals) <- str_replace_all(names(tmp.apache.vitals), "\\.x", "\\.min")
+names(tmp.apache.vitals) <- str_replace_all(names(tmp.apache.vitals), "\\.y", "\\.max")
+names(tmp.apache.vitals) <- str_replace_all(names(tmp.apache.vitals), "Apical Heart Rate", "hr")
+names(tmp.apache.vitals) <- str_replace_all(names(tmp.apache.vitals), "Mean Arterial Pressure", "map")
+names(tmp.apache.vitals) <- str_replace_all(names(tmp.apache.vitals), "Respiratory Rate", "rr")
+names(tmp.apache.vitals) <- str_replace_all(names(tmp.apache.vitals), "Temperature", "temp")
+
+data.apache <- inner_join(data.apache.labs, data.apache.vitals, by = "pie.id")
