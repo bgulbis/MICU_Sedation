@@ -32,7 +32,8 @@ raw.home.meds <- list.files(data.dir, pattern="^home_meds", full.names=TRUE) %>%
     lapply(read.csv, colClasses="character") %>%
     bind_rows %>%
     transmute(pie.id = PowerInsight.Encounter.Id,
-              home.med = Order.Catalog.Mnemonic)
+              home.med = str_to_lower(Order.Catalog.Short.Description),
+              home.med.order = Order.Catalog.Mnemonic)
 
 # Get lab data
 raw.labs <- list.files(data.dir, pattern="^labs[^_exclude]", full.names=TRUE) %>%
@@ -143,9 +144,40 @@ data.pmh <- raw.diagnosis %>%
 # get list of desired home medications by class
 ref.home.meds <- read.csv("Lookup/home_meds.csv", colClasses = "character")
 
-# lookup the meds which are in those classes
-tmp.meds.list <- med_lookup(ref.home.meds$med.class) 
+# there are some duplicate meds in anticonvulsants
+tmp <- ref.home.meds %>%
+    filter(med.class != "anticonvulsants")
 
-tmp.home.meds <- raw.home.meds %>%
-    filter(pie.id %in% pts.include$pie.id) %>%
-    mutate(contains = str_detect(home.med, regex(tmp.meds.list$med.name, ignore_case = TRUE)))
+# lookup the meds which are in all classes except anticonvulsants
+tmp.meds.list <- med_lookup(tmp$med.class) 
+
+tmp <- ref.home.meds %>%
+    filter(med.class == "anticonvulsants")
+
+# get meds in anticonvulsant class, remove any already in the med list
+tmp.meds.seizure <- med_lookup(tmp$med.class) %>%
+    filter(!(med.name %in% tmp.meds.list$med.name))
+
+# add remaining anticonvulsant meds to the list
+tmp.meds.list <- bind_rows(tmp.meds.list, tmp.meds.seizure) %>%
+    mutate(med.name = str_to_lower(med.name))
+
+ref.home.meds <- ref.home.meds %>%
+    mutate(med.class = factor(med.class))
+
+data.home.meds.long <- raw.home.meds %>%
+    filter(pie.id %in% pts.include$pie.id,
+           home.med %in% tmp.meds.list$med.name) %>%
+    inner_join(tmp.meds.list, by = c("home.med" = "med.name")) %>%
+    mutate(med.class = factor(med.class, levels = ref.home.meds$med.class))
+
+tmp <- !is.na(str_extract(levels(data.home.meds.long$med.class),"combinations"))
+levels(data.home.meds.long$med.class)[tmp == TRUE] <- "narcotic analgesics"
+
+data.home.meds <- data.home.meds.long %>%
+    group_by(pie.id, med.class) %>%
+    select(pie.id, med.class) %>%
+    distinct %>%
+    mutate(value = TRUE) %>%
+    spread(med.class, value, fill = FALSE, drop = FALSE)
+    
