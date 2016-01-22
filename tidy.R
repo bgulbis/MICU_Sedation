@@ -5,6 +5,17 @@
 
 source("library.R")
 
+# function used to update MICU depart time if calculated depart time is NA
+get_depart <- function(x, y) {
+    if (is.na(y)) {
+        x
+    } else {
+        y
+    }
+}
+
+# raw data ---------------------------------------------------------------------
+
 # Get demographics for included patients
 raw.demograph <- list.files(data.dir, pattern="^demographics", full.names=TRUE) %>%
     lapply(read.csv, colClasses="character") %>%
@@ -77,15 +88,7 @@ tmp <- raw.demograph %>%
 data.demograph <- raw.demograph %>%
     select(-fin) 
 
-# get MICU LOS -----------------------------------------------------------------
-
-get_depart <- function(x, y) {
-    if (is.na(y)) {
-        x
-    } else {
-        y
-    }
-}
+# MICU LOS -----------------------------------------------------------------
 
 tmp.micu.admit <- tmp.locations %>%
     filter(pie.id %in% pts.include$pie.id,
@@ -95,7 +98,7 @@ tmp.micu.admit <- tmp.locations %>%
 tmp.los <- tmp.micu.admit %>%
     select(pie.id, unit.los)
 
-# get vent duration ------------------------------------------------------------
+# vent duration ------------------------------------------------------------
 
 tmp.vent.duration <- tmp.vent %>%
     filter(pie.id %in% pts.include$pie.id) %>%
@@ -106,7 +109,7 @@ data.demograph <- data.demograph %>%
     inner_join(tmp.los, by = "pie.id") %>%
     inner_join(tmp.vent.duration, by = "pie.id")
 
-# get height and weight --------------------------------------------------------
+# height and weight --------------------------------------------------------
 
 tmp.weight <- raw.height.weight %>%
     filter(pie.id %in% pts.include$pie.id,
@@ -128,7 +131,7 @@ data.demograph <- data.demograph %>%
     inner_join(tmp.weight, by = "pie.id") %>%
     inner_join(tmp.height, by = "pie.id")
 
-# get PMH ----------------------------------------------------------------------
+# PMH ----------------------------------------------------------------------
 
 ref.pmh.codes <- read.csv("Lookup/pmh_codes.csv", colClasses = "character")
 
@@ -148,7 +151,7 @@ data.pmh <- raw.diagnosis %>%
     full_join(select(pts.include, pie.id), by = "pie.id") %>%
     mutate_each(funs(ifelse(is.na(.), FALSE, .)), arf:seizure)
     
-# get home medications ---------------------------------------------------------
+# home medications ---------------------------------------------------------
 
 # get list of desired home medications by class
 ref.home.meds <- read.csv("Lookup/home_meds.csv", colClasses = "character")
@@ -195,8 +198,7 @@ data.home.meds <- data.home.meds.long %>%
 
 tmp.lfts <- raw.labs %>%
     inner_join(tmp.micu.admit, by = "pie.id") %>%
-    filter(pie.id %in% pts.include$pie.id,
-           lab == "AST" | lab == "ALT",
+    filter(lab == "AST" | lab == "ALT",
            lab.datetime >= arrival,
            lab.datetime <= leave) %>%
     group_by(pie.id, lab) %>%
@@ -211,7 +213,7 @@ data.labs.lfts.long <- tmp.lfts
 # most abnormal values in first 24 hours of ICU stay
 
 labs.list <- c("Creatinine Lvl", "Glasgow Coma Score", "PaO2", "POC A pH", 
-               "POC A PO2", "Potassium Lvl", "Sodium Lvl", "WBC", "Hct")
+               "POC A PO2", "Potassium Lvl", "Sodium Lvl", "WBC", "Hct", "FIO2 (%)")
 
 tmp.labs <- raw.labs
 
@@ -219,10 +221,9 @@ tmp <- !is.na(str_extract(levels(tmp.labs$lab),"POC A PO2"))
 levels(tmp.labs$lab)[tmp == TRUE] <- "PaO2"
 
 # get min and max lab values in first 24 hours of ICU admission
-tmp.apache.labs <- raw.labs %>%
+tmp.apache.labs <- tmp.labs %>%
     inner_join(tmp.micu.admit, by = "pie.id") %>%
-    filter(pie.id %in% pts.include$pie.id,
-           lab %in% labs.list,
+    filter(lab %in% labs.list,
            lab.datetime >= arrival,
            lab.datetime <= arrival + days(1)) %>%
     group_by(pie.id, lab) %>%
@@ -250,6 +251,8 @@ names(tmp.apache.labs) <- str_replace_all(names(tmp.apache.labs), "POC A pH", "p
 names(tmp.apache.labs) <- str_replace_all(names(tmp.apache.labs), "Potassium Lvl", "k")
 names(tmp.apache.labs) <- str_replace_all(names(tmp.apache.labs), "Sodium Lvl", "na")
 names(tmp.apache.labs) <- str_replace_all(names(tmp.apache.labs), "WBC", "wbc")
+names(tmp.apache.labs) <- str_replace_all(names(tmp.apache.labs), "Hct", "hct")
+names(tmp.apache.labs) <- str_replace_all(names(tmp.apache.labs), "FIO2 (%)", "fio2")
 
 # combine all temperatures and MAPs
 tmp.vitals <- raw.vitals
@@ -263,8 +266,7 @@ levels(tmp.vitals$vital)[tmp == TRUE] <- "Mean Arterial Pressure"
 # get min and max vital values in first 24 hours of ICU admission
 tmp.apache.vitals <- tmp.vitals %>%
     inner_join(tmp.micu.admit, by = "pie.id") %>%
-    filter(pie.id %in% pts.include$pie.id,
-           vital.datetime >= arrival,
+    filter(vital.datetime >= arrival,
            vital.datetime <= arrival + days(1)) %>%
     group_by(pie.id, vital) %>%
     filter(!is.na(result)) %>%
@@ -288,4 +290,29 @@ names(tmp.apache.vitals) <- str_replace_all(names(tmp.apache.vitals), "Mean Arte
 names(tmp.apache.vitals) <- str_replace_all(names(tmp.apache.vitals), "Respiratory Rate", "rr")
 names(tmp.apache.vitals) <- str_replace_all(names(tmp.apache.vitals), "Temperature", "temp")
 
-data.apache <- inner_join(data.apache.labs, data.apache.vitals, by = "pie.id")
+data.apache <- inner_join(tmp.apache.labs, tmp.apache.vitals, by = "pie.id")
+
+# sedatives --------------------------------------------------------------------
+
+# calcualte duration of use, total continuous dose, total bolus dose for each
+# med
+
+sedatives.list <- c("dexmedetomidine", "propofol", "lorazepam", 
+                    "midazolam", "fentanyl", "hydromorphone", "ketamine")
+
+tmp.sedatives <- raw.meds %>%
+    inner_join(tmp.micu.admit, by = "pie.id") %>%
+    mutate(med = str_to_lower(med)) %>%
+    filter(med %in% sedatives.list,
+           med.datetime >= arrival,
+           med.datetime <= leave) %>%
+    select(pie.id:iv.event) %>%
+    mutate(med = factor(med))
+
+# calculate total bolus dose administered
+tmp.sedatives.bolus <- tmp.sedatives %>%
+    filter(is.na(rate.unit)) %>%
+    group_by(pie.id, med, dose.unit) %>%
+    summarize(total.bolus.dose = sum(dose))
+
+# use auc to summarize continuous dose?
