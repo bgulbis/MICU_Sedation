@@ -79,9 +79,18 @@ data.demograph <- raw.demograph %>%
 
 # get MICU LOS -----------------------------------------------------------------
 
+get_depart <- function(x, y) {
+    if (is.na(y)) {
+        x
+    } else {
+        y
+    }
+}
+
 tmp.micu.admit <- tmp.locations %>%
     filter(pie.id %in% pts.include$pie.id,
-           location == micu)
+           location == micu) %>%
+    mutate(leave = get_depart(depart, calc.depart))
 
 tmp.los <- tmp.micu.admit %>%
     select(pie.id, unit.los)
@@ -180,4 +189,22 @@ data.home.meds <- data.home.meds.long %>%
     distinct %>%
     mutate(value = TRUE) %>%
     spread(med.class, value, fill = FALSE, drop = FALSE)
+
+# daily labs -------------------------------------------------------------------
+# all AST / ALT values during ICU stay
+
+tmp.lfts <- raw.labs %>%
+    inner_join(tmp.micu.admit, by = "pie.id") %>%
+    filter(pie.id %in% pts.include$pie.id,
+           lab == "AST" | lab == "ALT",
+           lab.datetime >= arrival,
+           lab.datetime <= leave) %>%
+    group_by(pie.id, lab) %>%
+    arrange(lab.datetime) %>%
+    select(pie.id:lab.datetime)
+
+data.labs.lfts.long <- tmp.lfts
+
+# APACHE-II --------------------------------------------------------------------
+# most abnormal values in first 24 hours of ICU stay
     
