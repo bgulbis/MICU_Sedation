@@ -14,6 +14,32 @@ get_depart <- function(x, y) {
     }
 }
 
+# function to convert drugs documented in mL to equivalent doses
+convert_ml <- function(drug, unit, dose) {
+    if (unit == "mL") {
+        if (drug == "propofol") {
+            return(dose * 10)
+        } else if (drug == "fentanyl") {
+            return(dose * 50)
+        } else if (drug == "dexmedetomidine") {
+            return(dose * 4)
+        }
+    } else {
+        return(dose)
+    }
+}
+
+# function to calculate total amount of drug infused
+total_dose <- function(drug, dose, duration, weight) {
+    if (drug == "propofol") {
+        return(dose * weight * duration * 60)
+    } else if (drug == "dexmedetomidine") {
+        return(dose * weight * duration)
+    } else {
+        return(dose * duration)
+    }
+}
+
 # raw data ---------------------------------------------------------------------
 
 # Get demographics for included patients
@@ -318,11 +344,17 @@ tmp.sedatives <- raw.meds %>%
     mutate(med = factor(med))
 
 # calculate total bolus dose administered
-data.sedatives.bolus <- tmp.sedatives %>%
+tmp.sedatives.bolus <- tmp.sedatives %>%
     filter(is.na(rate.unit)) %>%
     group_by(pie.id, med, dose.unit) %>%
     summarize(total.bolus.dose = sum(dose)) %>%
-    filter(total.bolus.dose > 0)
+    filter(total.bolus.dose > 0,
+           dose.unit != "patch") %>%
+    rowwise %>%
+    mutate(total.bolus.dose = convert_ml(med, dose.unit, total.bolus.dose)) %>%
+    ungroup %>%
+    group_by(pie.id, med) %>%
+    summarize(total.bolus.dose = sum(total.bolus.dose))
 
 # use auc to summarize continuous dose
 tmp.sedatives.cont <- tmp.sedatives %>%
@@ -333,14 +365,20 @@ tmp.sedatives.cont <- tmp.sedatives %>%
            run.time = as.numeric(difftime(med.datetime, first(med.datetime), units = "hours")))
 
 tmp.sedatives.auc <- tmp.sedatives.cont %>%
-    summarize(total.cont.dose = auc(run.time, rate))
+    summarize(total.cont.dose = auc(run.time, rate)) %>%
+    filter(total.cont.dose > 0)
 
 # calculate duration as sum of time on drip
 tmp.sedatives.time <- tmp.sedatives.cont %>%
     filter(rate > 0) %>%
-    summarize(total.cont.duration = sum(duration, na.rm = TRUE))
+    summarize(total.cont.duration = sum(duration, na.rm = TRUE)) %>%
+    filter(total.cont.duration > 0)
 
-data.sedatives.cont <- inner_join(tmp.sedatives.auc, tmp.sedatives.time, by = c("pie.id", "med"))
+data.sedatives <- inner_join(tmp.sedatives.auc, tmp.sedatives.time, by = c("pie.id", "med")) %>%
+    full_join(tmp.sedatives.bolus, by = c("pie.id", "med")) %>%
+    inner_join(select(data.demograph, pie.id, weight), by = "pie.id") %>%
+    rowwise %>%
+    mutate(total.dose = total_dose(med, total.cont.dose, total.cont.duration, weight) + total.bolus.dose)
 
 # daily assessments ----
 
