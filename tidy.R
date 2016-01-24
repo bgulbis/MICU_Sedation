@@ -191,7 +191,11 @@ data.home.meds <- data.home.meds.long %>%
     select(pie.id, med.class) %>%
     distinct %>%
     mutate(value = TRUE) %>%
-    spread(med.class, value, fill = FALSE, drop = FALSE)
+    spread(med.class, value, fill = FALSE, drop = FALSE) %>%
+    full_join(select(pts.include, pie.id), by = "pie.id") %>%
+    mutate_each(funs(ifelse(is.na(.), FALSE, .)), -pie.id)
+
+names(data.home.meds) <- make.names(names(data.home.meds))
 
 # daily labs -------------------------------------------------------------------
 # all AST / ALT values during ICU stay
@@ -252,7 +256,7 @@ names(tmp.apache.labs) <- str_replace_all(names(tmp.apache.labs), "Potassium Lvl
 names(tmp.apache.labs) <- str_replace_all(names(tmp.apache.labs), "Sodium Lvl", "na")
 names(tmp.apache.labs) <- str_replace_all(names(tmp.apache.labs), "WBC", "wbc")
 names(tmp.apache.labs) <- str_replace_all(names(tmp.apache.labs), "Hct", "hct")
-names(tmp.apache.labs) <- str_replace_all(names(tmp.apache.labs), "FIO2 (%)", "fio2")
+names(tmp.apache.labs) <- str_replace_all(names(tmp.apache.labs), "FIO2 \\(%\\)", "fio2")
 
 # combine all temperatures and MAPs
 tmp.vitals <- raw.vitals
@@ -292,6 +296,10 @@ names(tmp.apache.vitals) <- str_replace_all(names(tmp.apache.vitals), "Temperatu
 
 data.apache <- inner_join(tmp.apache.labs, tmp.apache.vitals, by = "pie.id")
 
+data.apache <- data.apache[, order(colnames(data.apache))]
+
+data.apache <- select(data.apache, pie.id, everything())
+
 # sedatives --------------------------------------------------------------------
 
 # calcualte duration of use, total continuous dose, total bolus dose for each
@@ -310,9 +318,29 @@ tmp.sedatives <- raw.meds %>%
     mutate(med = factor(med))
 
 # calculate total bolus dose administered
-tmp.sedatives.bolus <- tmp.sedatives %>%
+data.sedatives.bolus <- tmp.sedatives %>%
     filter(is.na(rate.unit)) %>%
     group_by(pie.id, med, dose.unit) %>%
-    summarize(total.bolus.dose = sum(dose))
+    summarize(total.bolus.dose = sum(dose)) %>%
+    filter(total.bolus.dose > 0)
 
-# use auc to summarize continuous dose?
+# use auc to summarize continuous dose
+tmp.sedatives.cont <- tmp.sedatives %>%
+    filter(!is.na(rate.unit)) %>%
+    group_by(pie.id, med) %>%
+    arrange(med.datetime) %>%
+    mutate(duration = as.numeric(difftime(lead(med.datetime), med.datetime, units = "hours")),
+           run.time = as.numeric(difftime(med.datetime, first(med.datetime), units = "hours")))
+
+tmp.sedatives.auc <- tmp.sedatives.cont %>%
+    summarize(total.cont.dose = auc(run.time, rate))
+
+# calculate duration as sum of time on drip
+tmp.sedatives.time <- tmp.sedatives.cont %>%
+    filter(rate > 0) %>%
+    summarize(total.cont.duration = sum(duration, na.rm = TRUE))
+
+data.sedatives.cont <- inner_join(tmp.sedatives.auc, tmp.sedatives.time, by = c("pie.id", "med"))
+
+# daily assessments ----
+
