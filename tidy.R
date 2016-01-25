@@ -5,57 +5,6 @@
 
 source("library.R")
 
-# function used to update MICU depart time if calculated depart time is NA
-get_depart <- function(x, y) {
-    if (is.na(y)) {
-        x
-    } else {
-        y
-    }
-}
-
-# function to convert drugs documented in mL to equivalent doses
-convert_ml <- function(drug, unit, dose) {
-    if (unit == "mL") {
-        if (drug == "propofol") {
-            return(dose * 10)
-        } else if (drug == "fentanyl") {
-            return(dose * 50)
-        } else if (drug == "dexmedetomidine") {
-            return(dose * 4)
-        }
-    } else {
-        return(dose)
-    }
-}
-
-# function to calculate total amount of drug infused
-total_dose <- function(drug, dose, duration, weight) {
-    if (drug == "propofol") {
-        return(dose * weight * duration * 60)
-    } else if (drug == "dexmedetomidine") {
-        return(dose * weight * duration)
-    } else {
-        return(dose * duration)
-    }
-}
-
-# interpret CAM-ICU
-interpret_cam_icu <- function(assess) {
-    result <- "Negative"
-    print(str(assess))
-    get_result <- function(x) {
-        if (x == "Positive") {
-            return(x)
-        } 
-    }
-    
-    lapply(assess, get_result)
-    
-    return(result)
-}
-
-
 # raw data ---------------------------------------------------------------------
 
 # Get demographics for included patients
@@ -365,9 +314,10 @@ tmp.sedatives.bolus <- tmp.sedatives %>%
     group_by(pie.id, med, dose.unit) %>%
     summarize(total.bolus.dose = sum(dose)) %>%
     filter(total.bolus.dose > 0,
-           dose.unit != "patch") %>%
-    rowwise %>%
-    mutate(total.bolus.dose = convert_ml(med, dose.unit, total.bolus.dose)) %>%
+           dose.unit != "patch",
+           dose.unit != "mL") %>%
+    # rowwise %>%
+    # mutate(total.bolus.dose = convert_ml(med, dose.unit, total.bolus.dose)) %>%
     ungroup %>%
     group_by(pie.id, med) %>%
     summarize(total.bolus.dose = sum(total.bolus.dose))
