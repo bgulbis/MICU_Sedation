@@ -40,6 +40,22 @@ total_dose <- function(drug, dose, duration, weight) {
     }
 }
 
+# interpret CAM-ICU
+interpret_cam_icu <- function(assess) {
+    result <- "Negative"
+    print(str(assess))
+    get_result <- function(x) {
+        if (x == "Positive") {
+            return(x)
+        } 
+    }
+    
+    lapply(assess, get_result)
+    
+    return(result)
+}
+
+
 # raw data ---------------------------------------------------------------------
 
 # Get demographics for included patients
@@ -378,7 +394,31 @@ data.sedatives <- inner_join(tmp.sedatives.auc, tmp.sedatives.time, by = c("pie.
     full_join(tmp.sedatives.bolus, by = c("pie.id", "med")) %>%
     inner_join(select(data.demograph, pie.id, weight), by = "pie.id") %>%
     rowwise %>%
-    mutate(total.dose = total_dose(med, total.cont.dose, total.cont.duration, weight) + total.bolus.dose)
+    mutate(time.wt.avg.rate = total.cont.dose / total.cont.duration,
+           total.dose = total_dose(med, total.cont.dose, total.cont.duration, weight) + total.bolus.dose)
 
 # daily assessments ----
 
+tmp.rass <- raw.labs %>%
+    inner_join(tmp.micu.admit, by = "pie.id") %>%
+    filter(lab == "RASS Score",
+           lab.datetime >= arrival,
+           lab.datetime <= leave) %>%
+    mutate(lab.date = floor_date(lab.datetime, unit = "day"),
+           result = as.numeric(result)) %>%
+    group_by(pie.id, lab.date) %>%
+    summarize(min.rass = min(result),
+              max.rass = max(result)) 
+
+tmp.cam.icu <- raw.labs %>%
+    inner_join(tmp.micu.admit, by = "pie.id") %>%
+    filter(lab == "(CAM-ICU) Interpretation",
+           lab.datetime >= arrival,
+           lab.datetime <= leave,
+           result != "Unable to assess") %>%
+    mutate(lab.date = floor_date(lab.datetime, unit = "day"),
+           result = ifelse(result == "Positive", TRUE, FALSE)) %>%
+    group_by(pie.id, lab.date) %>%
+    summarize(num.cam.icu.pos = sum(result))
+
+data.assessments <- full_join(tmp.rass, tmp.cam.icu, by = c("pie.id", "lab.date"))
