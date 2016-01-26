@@ -47,7 +47,18 @@ raw.labs <- list.files(data.dir, pattern="^labs[^_exclude]", full.names=TRUE) %>
               lab.datetime = mdy_hms(Clinical.Event.End.Date.Time))
 
 # Get medication data
-raw.meds <- list.files(data.dir, pattern="^medications", full.names=TRUE) %>%
+raw.meds.cont <- list.files(data.dir, pattern="^cont_meds", full.names=TRUE) %>%
+    lapply(read.csv, colClasses="character") %>%
+    bind_rows %>%
+    transmute(pie.id = PowerInsight.Encounter.Id,
+              med = Clinical.Event,
+              med.datetime = mdy_hms(Clinical.Event.End.Date.Time),
+              rate = as.numeric(Infusion.Rate),
+              rate.unit = factor(Infusion.Rate.Unit, exclude = ""),
+              event.id = Event.ID)
+
+# Get medication data
+raw.meds.bolus <- list.files(data.dir, pattern="^bolus_meds", full.names=TRUE) %>%
     lapply(read.csv, colClasses="character") %>%
     bind_rows %>%
     transmute(pie.id = PowerInsight.Encounter.Id,
@@ -55,10 +66,8 @@ raw.meds <- list.files(data.dir, pattern="^medications", full.names=TRUE) %>%
               med.datetime = mdy_hms(Clinical.Event.End.Date.Time),
               dose = as.numeric(Clinical.Event.Result),
               dose.unit = factor(Clinical.Event.Result.Units, exclude = ""),
-              rate = as.numeric(Infusion.Rate),
-              rate.unit = factor(Infusion.Rate.Unit, exclude = ""),
               route = factor(Route.of.Administration...Short, exclude = ""),
-              iv.event = factor(IV.Event.Desc, exclude = ""))
+              event.id = Event.ID)
 
 # Get vitals data
 raw.vitals <- list.files(data.dir, pattern="^vitals", full.names=TRUE) %>%
@@ -296,37 +305,53 @@ data.apache <- select(data.apache, pie.id, everything())
 # calcualte duration of use, total continuous dose, total bolus dose for each
 # med
 
-sedatives.list <- c("dexmedetomidine", "propofol", "lorazepam", 
-                    "midazolam", "fentanyl", "hydromorphone", "ketamine")
-
-tmp.sedatives <- raw.meds %>%
+# calculate total bolus dose administered
+tmp.sedatives.bolus <- raw.meds.bolus %>%
     inner_join(tmp.micu.admit, by = "pie.id") %>%
     mutate(med = str_to_lower(med)) %>%
-    filter(med %in% sedatives.list,
-           med.datetime >= arrival,
+    filter(med.datetime >= arrival,
            med.datetime <= leave) %>%
-    select(pie.id:iv.event) %>%
-    mutate(med = factor(med))
-
-# calculate total bolus dose administered
-tmp.sedatives.bolus <- tmp.sedatives %>%
-    filter(is.na(rate.unit)) %>%
-    group_by(pie.id, med, dose.unit) %>%
-    summarize(total.bolus.dose = sum(dose)) %>%
-    filter(total.bolus.dose > 0,
-           dose.unit != "patch",
-           dose.unit != "mL") %>%
-    # rowwise %>%
-    # mutate(total.bolus.dose = convert_ml(med, dose.unit, total.bolus.dose)) %>%
-    ungroup %>%
     group_by(pie.id, med) %>%
-    summarize(total.bolus.dose = sum(total.bolus.dose))
+    summarize(total.bolus.dose = sum(dose)) 
+
+update_rate <- function(rate, rate.unit) {
+    x <- rate
+    set_rate <- function(j) {
+        if (!is.na(rate.unit[j])) {
+            
+        }    
+    }
+    
+    lapply(seq_along(rate), set_rate(i))
+}
 
 # use auc to summarize continuous dose
-tmp.sedatives.cont <- tmp.sedatives %>%
-    filter(!is.na(rate.unit)) %>%
+tmp.sedatives.cont <- raw.meds.cont %>%
+    anti_join(raw.meds.bolus, by = "event.id") %>%
+    inner_join(tmp.micu.admit, by = "pie.id") %>%
+    filter(med.datetime >= arrival,
+           med.datetime <= leave) %>%
+    group_by(pie.id, med) %>%
+    arrange(med.datetime) 
+
+tmp.last.cont <- tmp.sedatives.cont %>%
+    # group_by(pie.id, med) %>%
+    # arrange(med.datetime) %>%
+    summarize(last.rate = last(rate, default = NA),
+              last.chart.datetime = last(med.datetime))
+
+tmp.last.cont.notna <- tmp.sedatives.cont %>%
     group_by(pie.id, med) %>%
     arrange(med.datetime) %>%
+    filter(!is.na(rate.unit)) %>%
+    summarize(last.rate.charted = last(rate),
+              last.datetime = last(med.datetime))
+
+tmp.last.cont.join <- inner_join(tmp.last.cont, tmp.last.cont.notna, by = c("pie.id", "med"))
+
+test <- head(tmp.sedatives.cont, 100) %>%
+    mutate(new.rate = update_rate(rate, rate.unit))
+    
     mutate(duration = as.numeric(difftime(lead(med.datetime), med.datetime, units = "hours")),
            run.time = as.numeric(difftime(med.datetime, first(med.datetime), units = "hours")))
 
