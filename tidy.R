@@ -82,7 +82,7 @@ raw.vitals <- list.files(data.dir, pattern="^vitals", full.names=TRUE) %>%
 tmp <- raw.demograph %>%
     select(fin, age:disposition)
 
-# write.csv(tmp, "patient_list.csv", row.names = FALSE)
+write.csv(tmp, paste0(export.dir, "patient_list.csv"), row.names = FALSE)
 
 # patient demographics ---------------------------------------------------------
 data.demograph <- raw.demograph %>%
@@ -363,14 +363,6 @@ data.sedatives <- select(data.demograph, pie.id, weight) %>%
 
 options(scipen = 0)
 
-tmp <- tmp.sedatives.cont %>%
-    ungroup %>%
-    group_by(med, rate.unit) %>%
-    select(med, rate.unit) %>%
-    filter(!is.na(rate.unit)) %>%
-    distinct %>% 
-    arrange(med)
-
 # daily assessments ----
 
 tmp.rass <- raw.labs %>%
@@ -396,3 +388,19 @@ tmp.cam.icu <- raw.labs %>%
     summarize(num.cam.icu.pos = sum(result))
 
 data.assessments <- full_join(tmp.rass, tmp.cam.icu, by = c("pie.id", "lab.date"))
+
+# export ----
+
+# export.list <- ls(pattern = "data.")
+# lapply(1:length(export.list), function(i) write.csv(export.list[[i]], 
+#                                                      file = paste0("Export/", names(export.list[i]), ".csv"), row.names = FALSE))
+# lapply(seq_along(export.list), function(i) print("Export/", names(export.list[i])))
+
+write.csv(data.apache, paste0(export.dir, "data_apache.csv"), row.names = FALSE)
+write.csv(data.assessments, paste0(export.dir, "data_assessments.csv"), row.names = FALSE)
+write.csv(data.demograph, paste0(export.dir, "data_demograph.csv"), row.names = FALSE)
+write.csv(data.home.meds, paste0(export.dir, "data_home_meds.csv"), row.names = FALSE)
+write.csv(data.home.meds.long, paste0(export.dir, "data_home_meds_list.csv"), row.names = FALSE)
+write.csv(data.labs.lfts.long, paste0(export.dir, "data_lfts_list.csv"), row.names = FALSE)
+write.csv(data.pmh, paste0(export.dir, "data_pmh.csv"), row.names = FALSE)
+write.csv(data.sedatives, paste0(export.dir, "data_sedatives.csv"), row.names = FALSE)

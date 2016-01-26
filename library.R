@@ -15,6 +15,7 @@ micu <- "Cullen 2 E Medical Intensive Care Unit"
 
 # set the directory containing the data
 data.dir <- "Data"
+export.dir <- "Export/"
 
 # compress medication data files
 gzip_files(data.dir)
