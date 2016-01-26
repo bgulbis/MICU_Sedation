@@ -28,29 +28,40 @@ get_depart <- function(x, y) {
     }
 }
 
-# function to convert drugs documented in mL to equivalent doses
-convert_ml <- function(drug, unit, dose) {
-    if (unit == "mL") {
-        if (drug == "propofol") {
-            return(dose * 10)
+# function to convert drugs documented in non-standard rates to equivalent doses
+convert_units <- function(drug, unit, dose, weight) {
+    drug <- str_to_lower(drug)
+    
+    if (!is.na(unit)) {
+        if (drug == "ketamine") {
+            # mg/hr to mg/kg/hr
+            if (unit == "mg/hr") {
+                dose <- dose / weight
+            }
         } else if (drug == "fentanyl") {
-            return(dose * 50)
-        } else if (drug == "dexmedetomidine") {
-            return(dose * 4)
+            # mg/hr to mcg/hr
+            if (unit == "mg/hr") {
+                dose <- dose * 1000
+            } else if (unit == "microgram/kg/min") {
+                # mcg/kg/min? - think this is actually mcg/min
+                dose <- dose * 60
+            }
         }
-    } else {
-        return(dose)
     }
+    
+    dose
 }
 
 # function to calculate total amount of drug infused
-total_dose <- function(drug, dose, duration, weight) {
+total_dose <- function(drug, auc, weight) {
+    drug <- str_to_lower(drug)
+    
     if (drug == "propofol") {
-        return(dose * weight * duration * 60 / 1000)
-    } else if (drug == "dexmedetomidine") {
-        return(dose * weight * duration)
+        return(auc * weight * 60 / 1000)
+    } else if (drug == "dexmedetomidine" | drug == "ketamine") {
+        return(auc * weight)
     } else {
-        return(dose * duration)
+        return(auc)
     }
 }
 

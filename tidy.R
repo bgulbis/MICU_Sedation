@@ -294,7 +294,9 @@ names(tmp.apache.vitals) <- str_replace_all(names(tmp.apache.vitals), "Mean Arte
 names(tmp.apache.vitals) <- str_replace_all(names(tmp.apache.vitals), "Respiratory Rate", "rr")
 names(tmp.apache.vitals) <- str_replace_all(names(tmp.apache.vitals), "Temperature", "temp")
 
-data.apache <- inner_join(tmp.apache.labs, tmp.apache.vitals, by = "pie.id")
+data.apache <- select(data.demograph, pie.id, age) %>%
+    inner_join(tmp.apache.labs, by = "pie.id") %>%
+    inner_join(tmp.apache.vitals, by = "pie.id")
 
 data.apache <- data.apache[, order(colnames(data.apache))]
 
@@ -314,63 +316,60 @@ tmp.sedatives.bolus <- raw.meds.bolus %>%
     group_by(pie.id, med) %>%
     summarize(total.bolus.dose = sum(dose)) 
 
-update_rate <- function(rate, rate.unit) {
-    x <- rate
-    set_rate <- function(j) {
-        if (!is.na(rate.unit[j])) {
-            
-        }    
-    }
-    
-    lapply(seq_along(rate), set_rate(i))
-}
-
 # use auc to summarize continuous dose
 tmp.sedatives.cont <- raw.meds.cont %>%
     anti_join(raw.meds.bolus, by = "event.id") %>%
     inner_join(tmp.micu.admit, by = "pie.id") %>%
     filter(med.datetime >= arrival,
            med.datetime <= leave) %>%
-    group_by(pie.id, med) %>%
-    arrange(med.datetime) 
-
-tmp.last.cont <- tmp.sedatives.cont %>%
-    # group_by(pie.id, med) %>%
-    # arrange(med.datetime) %>%
-    summarize(last.rate = last(rate, default = NA),
-              last.chart.datetime = last(med.datetime))
-
-tmp.last.cont.notna <- tmp.sedatives.cont %>%
+    inner_join(select(data.demograph, pie.id, weight), by = "pie.id") %>%
+    rowwise %>%
+    mutate(rate = convert_units(med, rate.unit, rate, weight)) %>%
+    ungroup %>%
     group_by(pie.id, med) %>%
     arrange(med.datetime) %>%
-    filter(!is.na(rate.unit)) %>%
-    summarize(last.rate.charted = last(rate),
-              last.datetime = last(med.datetime))
-
-tmp.last.cont.join <- inner_join(tmp.last.cont, tmp.last.cont.notna, by = c("pie.id", "med"))
-
-test <- head(tmp.sedatives.cont, 100) %>%
-    mutate(new.rate = update_rate(rate, rate.unit))
+    select(pie.id:event.id)
     
+tmp.sedatives.last <- tmp.sedatives.cont %>%
+    summarize(last.datetime = last(med.datetime))
+
+tmp.sedatives.cont <- tmp.sedatives.cont %>%
+    inner_join(tmp.sedatives.last, by = c("pie.id", "med"))  %>%
+    filter(med.datetime == last.datetime | !is.na(rate.unit)) %>%
     mutate(duration = as.numeric(difftime(lead(med.datetime), med.datetime, units = "hours")),
            run.time = as.numeric(difftime(med.datetime, first(med.datetime), units = "hours")))
 
+# turn off scientific notation
+options(scipen = 999)
+
 tmp.sedatives.auc <- tmp.sedatives.cont %>%
-    summarize(total.cont.dose = auc(run.time, rate)) %>%
-    filter(total.cont.dose > 0)
+    summarize(dose.auc = auc(run.time, rate)) %>%
+    filter(dose.auc > 0)
 
 # calculate duration as sum of time on drip
 tmp.sedatives.time <- tmp.sedatives.cont %>%
     filter(rate > 0) %>%
-    summarize(total.cont.duration = sum(duration, na.rm = TRUE)) %>%
-    filter(total.cont.duration > 0)
+    summarize(cont.duration = sum(duration, na.rm = TRUE)) %>%
+    filter(cont.duration > 0)
 
-data.sedatives <- inner_join(tmp.sedatives.auc, tmp.sedatives.time, by = c("pie.id", "med")) %>%
-    full_join(tmp.sedatives.bolus, by = c("pie.id", "med")) %>%
-    inner_join(select(data.demograph, pie.id, weight), by = "pie.id") %>%
+data.sedatives <- select(data.demograph, pie.id, weight) %>%
+    inner_join(tmp.sedatives.auc, by = "pie.id") %>%
+    inner_join(tmp.sedatives.time, by = c("pie.id", "med")) %>%
     rowwise %>%
-    mutate(time.wt.avg.rate = total.cont.dose / total.cont.duration,
-           total.dose = total_dose(med, total.cont.dose, total.cont.duration, weight) + total.bolus.dose)
+    mutate(time.wt.avg.rate = dose.auc / cont.duration,
+           total.cont.dose = total_dose(med, dose.auc, weight)) %>%
+    full_join(tmp.sedatives.bolus, by = c("pie.id", "med")) %>%
+    mutate(total.dose = sum(c(total.cont.dose, total.bolus.dose), na.rm = TRUE))
+
+options(scipen = 0)
+
+tmp <- tmp.sedatives.cont %>%
+    ungroup %>%
+    group_by(med, rate.unit) %>%
+    select(med, rate.unit) %>%
+    filter(!is.na(rate.unit)) %>%
+    distinct %>% 
+    arrange(med)
 
 # daily assessments ----
 
