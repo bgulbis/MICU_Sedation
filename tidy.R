@@ -389,6 +389,22 @@ tmp.cam.icu <- raw.labs %>%
 
 data.assessments <- full_join(tmp.rass, tmp.cam.icu, by = c("pie.id", "lab.date"))
 
+# groups ----
+
+# determine number of benzo patients
+tmp <- data.sedatives %>%
+    ungroup %>%
+    filter(med == "midazolam" | str_to_lower(med) == "lorazepam",
+           !is.na(cont.duration)) %>%
+    group_by(pie.id) %>%
+    select(pie.id) %>%
+    distinct %>%
+    mutate(bzd = TRUE)
+
+data.demograph <- data.demograph %>%
+    left_join(tmp, by = "pie.id") %>%
+    mutate(bzd = ifelse(is.na(bzd), FALSE, bzd))
+
 # export ----
 
 # export.list <- ls(pattern = "data.")
@@ -404,3 +420,4 @@ write.csv(data.home.meds.long, paste0(export.dir, "data_home_meds_list.csv"), ro
 write.csv(data.labs.lfts.long, paste0(export.dir, "data_lfts_list.csv"), row.names = FALSE)
 write.csv(data.pmh, paste0(export.dir, "data_pmh.csv"), row.names = FALSE)
 write.csv(data.sedatives, paste0(export.dir, "data_sedatives.csv"), row.names = FALSE)
+
