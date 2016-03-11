@@ -39,6 +39,33 @@ results <- analyze_data(temp, my.group)
 pander(results)
 ```
 
+
+```{r}
+library(purrr)
+library(broom)
+
+temp <- data.demograph %>%
+    mutate(group = ifelse(bzd == TRUE, "BZD", "No BZD")) %>%
+    group_by(group) %>%
+    select(-bzd, -pie.id)
+
+
+
+cont <- map_lgl(temp, is.numeric)
+
+test <- keep(temp, is.numeric) %>% 
+    bind_cols(select(temp, group)) %>% 
+    # group_by(group) %>%
+    # do(tidy(summary(.)))
+    
+    slice_rows("group") %>% 
+    by_slice(map, summary)
+
+test2 <- temp %>% split(.$group) %>% map(summary)
+
+pander(test$.out)
+```
+
 ## References
 
 Data was processed using `r R.Version()$version.string` on a `r R.Version()$platform` system.
