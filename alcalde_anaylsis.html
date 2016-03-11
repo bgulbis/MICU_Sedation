@@ -117,10 +117,17 @@ $(document).ready(function () {
 </div>
 
 
-<div id="continuous-data" class="section level3">
-<h3>Continuous Data</h3>
-<p>Shapiro-Wilk normality test is performed and if the data is not normally distributed (the p-value is &lt; 0.05), then the Mann-Whitney test is used to compare the medians of the my.groups.</p>
-<p>If the data is normally distributed, an F-test is performed to determine if the my.groups have equal variances (p-value is <span class="math inline">\(\ge\)</span> 0.05) and then the appropriate t-test (with or without equal variances) is used to compare the means of the my.groups.</p>
+<div id="continuous-data" class="section level4">
+<h4>Continuous Data</h4>
+<p>Shapiro-Wilk normality test is performed and if the data is not normally distributed (the p-value is &lt; 0.05), then the Mann-Whitney test is used to compare the medians of the groups.</p>
+<p>If the data is normally distributed, an F-test is performed to determine if the groups have equal variances (p-value is <span class="math inline">\(\ge\)</span> 0.05) and then the appropriate t-test (with or without equal variances) is used to compare the means of the my.groups.</p>
+</div>
+<div id="categorical-data" class="section level4">
+<h4>Categorical Data</h4>
+<p>Data is evaluated using the Chi-squared test.</p>
+</div>
+<div id="results" class="section level2">
+<h2>Results</h2>
 <ul>
 <li><p><strong>age</strong>:</p>
 <ul>
@@ -1139,13 +1146,6 @@ $(document).ready(function () {
 </tbody>
 </table></li>
 </ul></li>
-</ul>
-<!-- end of list -->
-</div>
-<div id="categorical-data" class="section level3">
-<h3>Categorical Data</h3>
-<p>Data is evaluated using the Chi-squared test.</p>
-<ul>
 <li><p><strong>sex</strong>:</p>
 <ul>
 <li><p><strong>counts</strong>:</p>
@@ -3249,8 +3249,8 @@ $(document).ready(function () {
 </ul>
 <!-- end of list -->
 </div>
-<div id="references" class="section level3">
-<h3>References</h3>
+<div id="references" class="section level2">
+<h2>References</h2>
 <p>Data was processed using R version 3.2.3 (2015-12-10) on a x86_64-w64-mingw32 system.</p>
 <p>Prepared by: Brian Gulbis</p>
 <pre><code>## 
