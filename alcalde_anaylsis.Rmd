@@ -1,0 +1,96 @@
+---
+title: "Sedation with Benzodiazepines in MICU"
+subtitle: "Analysis for Alcalde"
+author: "Elizabeth Franco, Jen Cortes"
+date: '`r format(Sys.Date(), "%B %d, %Y")`'
+output: html_document
+---
+
+```{r echo=FALSE, warning=FALSE, message=FALSE, results='asis'}
+library(pander)
+library(FSA)
+library(dplyr)
+if (!exists("data.demograph")) data.demograph <- readRDS("Analysis/data_demograph.Rds")
+if (!exists("data.assessments")) data.assessments <- readRDS("Analysis/data_assessments.Rds")
+if (!exists("data.lfts")) data.lfts <- readRDS("Analysis/data_lfts.Rds")
+if (!exists("data.sedatives")) data.sedatives <- readRDS("Analysis/data_sedatives.Rds")
+```
+
+### Continuous Data
+
+Shapiro-Wilk normality test is performed and if the data is not normally distributed (the p-value is < 0.05), then the Mann-Whitney test is used to compare the medians of the my.groups.
+
+If the data is normally distributed, an F-test is performed to determine if the my.groups have equal variances (p-value is $\ge$ 0.05) and then the appropriate t-test (with or without equal variances) is used to compare the means of the my.groups.
+
+```{r echo=FALSE, warning=FALSE}
+temp <- data.demograph %>%
+    mutate(group = ifelse(bzd == TRUE, "BZD", "No BZD"))
+my.group <- temp$group
+temp <- select(temp, -group, -bzd)
+
+cont <- sapply(temp, is.numeric)
+test <- temp[,c(cont)]
+
+ds1 <- lapply(test, tapply, my.group, Summarize)
+ds2 <- lapply(ds1, do.call, what=cbind)
+
+## a p < 0.05 implies the data is not normally distributed
+sw1 <- lapply(test, shapiro.test)
+
+## if not normally distributed, use non-parametric test
+## if var.test$p.value >= 0.05 then variances are equal
+tt3 <- lapply(test, function(x) 
+    if(shapiro.test(x) >= 0.05) {
+        wilcox.test(x ~ my.group)
+    } else if(var.test(x ~ my.group)$p.value >= 0.05) {
+        t.test(x ~ my.group)
+    } else {
+        t.test(x ~ my.group, var.equal=TRUE)
+    })
+
+np1 <- lapply(test, function(x) wilcox.test(x ~ my.group))
+
+ds3 <- lapply(seq_along(ds1), function(i) list(results = ds2[[i]], normality = sw1[[i]], comparison = tt3[[i]]))
+
+names(ds3) <- names(ds1)
+
+pander(ds3)
+```
+
+### Categorical Data
+
+Data is evaluated using the Chi-squared test. 
+
+```{r echo=FALSE, warning=FALSE}
+test <- temp[,!c(cont)]
+test <- select(test, -pie.id, -diagnosis) 
+
+ds1 <- lapply(test, function(x) table(x, my.group))
+ds2 <- lapply(test, function(x) Summarize(my.group ~ x, percent="column", addtotal=FALSE))
+# csq <- lapply(ds1, summary)
+
+csq <- lapply(test, function(x) 
+    if(is.factor(x)) {
+        chisq.test(x, my.group)
+    } else if(is.logical(x) & sum(x, na.rm=TRUE) > 0) {
+        chisq.test(x, my.group)
+    } else {
+        "Chi-squared could not be performed"
+    })
+
+ds3 <- lapply(seq_along(ds1), function(i) list(counts = ds1[[i]], percents = ds2[[i]], chi.sq = csq[[i]]))
+names(ds3) <- names(ds1)
+
+pander(ds3)
+```
+
+
+### References
+
+Data was processed using `r R.Version()$version.string` on a `r R.Version()$platform` system.
+
+Prepared by: Brian Gulbis
+
+```{r echo=FALSE}
+citation()
+```

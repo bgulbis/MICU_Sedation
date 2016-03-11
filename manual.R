@@ -26,5 +26,7 @@ tmp.manual <- raw.manual %>%
     mutate_each(funs(ifelse(. == "yes", TRUE, (ifelse(. == "no", FALSE, NA)))), alcohol.use, illicit.drug.use, arf, organ.insuff) %>%
     mutate(exclude = as.logical(exclude))
 
-pts.include <- filter(tmp.manual, exclude == FALSE)
-pts.include <- pts.include$pie.id
+data.manual <- filter(tmp.manual, exclude == FALSE) %>%
+    select(-exclude, -arf)
+
+pts.include <- data.manual$pie.id
