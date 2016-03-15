@@ -11,6 +11,7 @@ library(BGTools)
 library(pander)
 library(FSA)
 library(dplyr)
+library(purrr)
 if (!exists("data.demograph")) data.demograph <- readRDS("Analysis/data_demograph.Rds")
 if (!exists("data.assessments")) data.assessments <- readRDS("Analysis/data_assessments.Rds")
 if (!exists("data.lfts")) data.lfts <- readRDS("Analysis/data_lfts.Rds")
@@ -33,11 +34,71 @@ Data is evaluated using the Chi-squared test.
 temp <- data.demograph %>%
     mutate(group = ifelse(bzd == TRUE, "BZD", "No BZD"))
 my.group <- temp$group
-temp <- select(temp, -group, -bzd)
+temp <- select(temp, -pie.id, -bzd, -diagnosis)
 
-results <- analyze_data(temp, my.group)
+results <- analyze_data(temp)
 pander(results)
 ```
+
+## Sedatives
+
+```{r echo=FALSE, warning=FALSE}
+sed <- data.sedatives %>% 
+    mutate(group = factor(ifelse(bzd == TRUE, "BZD", "No BZD"))) %>%
+    select(med, group, time.wt.avg.rate:total.dose) 
+
+sed.split <- sed %>%
+    split(.$med)
+
+grp <- sed.split$dexmedetomidine$group
+
+smry <- lapply(sed.split$dexmedetomidine, tapply, grp, Summarize)
+res <- lappy(smry, )
+
+test <- lapply(sed.split$dexmedetomidine, function(x)
+    tapply(x, grp, function(y) sum(!is.na(y)))
+)
+
+               
+               # tapply, grp, function(x) sum(!is.na(x)))
+test2 <- lapply(test, function(x) sum(x < 4))
+
+test <- sed.split$dexmedetomidine %>%
+    group_by(group) %>%
+    summarise_each(~sum(!is.na(.))) 
+    
+cont <- sed %>% 
+    slice_rows(c("med", "group")) %>%
+    keep(is.numeric)
+
+test2 <- lapply(sed.split$dexmedetomidine, function(x) split(x, grp))
+test3 <- lapply(test2, function(x) sum(!is.na(x)))
+    # map(analyze_data)
+    # by_slice(analyze_data)
+
+test <- lapply(sed, analyze_data)
+res <- analyze_data(sed.split$dexmedetomidine)
+res2 <- analyze_data(sed.split$propofol)
+
+    cont <- sapply(sed, is.numeric)
+    test <- my.data[,c(cont)]
+
+    ds1 <- lapply(test, tapply, my.group, Summarize)
+
+
+my.group <- sed$group
+
+sed <- ungroup(sed) %>%
+    select(med, time.wt.avg.rate:total.dose) %>%
+    # slice_rows("med") %>%
+    # by_slice(map, summary)
+    # by_slice(analyze_data, my.group = my.group)
+
+tmp <- filter(sed, med == "lorazepam") %>%
+    analyze_data(my.group)
+
+```
+
 
 
 ```{r}
