@@ -21,7 +21,9 @@ data.lfts <- filter(data.labs.lfts.long, pie.id %in% pts.include.man)
 saveRDS(data.lfts, paste(analysis.dir, "data_lfts.Rds", sep="/"))
 write.csv(data.lfts, paste0(export.dir, "data_lfts.csv"), row.names = FALSE)
 
-data.sedatives <- filter(data.sedatives, pie.id %in% pts.include.man)
+tmp.group <- select(data.demograph, pie.id, bzd)
+data.sedatives <- filter(data.sedatives, pie.id %in% pts.include.man) %>%
+    inner_join(tmp.group, by = "pie.id") 
 saveRDS(data.sedatives, paste(analysis.dir, "data_sedatives.Rds", sep="/"))
 write.csv(data.sedatives, paste0(export.dir, "data_sedatives.csv"), row.names = FALSE)
 

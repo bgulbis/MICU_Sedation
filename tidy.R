@@ -372,7 +372,10 @@ data.sedatives <- select(data.demograph, pie.id, weight) %>%
     mutate(time.wt.avg.rate = dose.auc / cont.duration,
            total.cont.dose = total_dose(med, dose.auc, weight)) %>%
     full_join(tmp.sedatives.bolus, by = c("pie.id", "med")) %>%
-    mutate(total.dose = sum(c(total.cont.dose, total.bolus.dose), na.rm = TRUE))
+    mutate(total.dose = sum(c(total.cont.dose, total.bolus.dose), na.rm = TRUE),
+           med = str_to_lower(med)) %>%
+    ungroup %>%
+    mutate(med = factor(med))
 
 options(scipen = 0)
 
