@@ -29,4 +29,4 @@ tmp.manual <- raw.manual %>%
 data.manual <- filter(tmp.manual, exclude == FALSE) %>%
     select(-exclude, -arf)
 
-pts.include <- data.manual$pie.id
+pts.include.man <- data.manual$pie.id

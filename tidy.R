@@ -212,6 +212,19 @@ tmp.lfts <- raw.labs %>%
     filter(!is.na(result))
 
 data.labs.lfts.long <- tmp.lfts
+# ast >75, alt >81
+tmp.lfts.sum <- tmp.lfts %>%
+    filter((lab == "AST" & result > 75) | (lab == "ALT" & result > 81)) %>%
+    group_by(pie.id, lab) %>%
+    summarize(num.high = n()) %>%
+    spread(lab, num.high, fill = 0) %>%
+    mutate_each(funs(ifelse(. > 0, TRUE, FALSE)), -pie.id) %>%
+    full_join(select(pts.include, pie.id), by = "pie.id") %>%
+    mutate_each(funs(ifelse(is.na(.), FALSE, .)), -pie.id)
+    
+names(tmp.lfts.sum) <- str_to_lower(names(tmp.lfts.sum))
+
+data.demograph <- inner_join(data.demograph, tmp.lfts.sum, by = "pie.id")
 
 # APACHE-II --------------------------------------------------------------------
 # most abnormal values in first 24 hours of ICU stay
@@ -388,6 +401,14 @@ tmp.cam.icu <- raw.labs %>%
     summarize(num.cam.icu.pos = sum(result))
 
 data.assessments <- full_join(tmp.rass, tmp.cam.icu, by = c("pie.id", "lab.date"))
+
+tmp.camicu <- data.assessments %>%
+    group_by(pie.id) %>%
+    summarize(cam.icu.num = sum(num.cam.icu.pos, na.rm = TRUE)) %>%
+    mutate(cam.icu.pos = ifelse(cam.icu.num > 0, TRUE, FALSE)) %>%
+    select(-cam.icu.num)
+
+data.demograph <- inner_join(data.demograph, tmp.camicu, by = "pie.id")
 
 # groups ----
 
