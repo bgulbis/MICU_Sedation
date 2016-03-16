@@ -1,9 +1,9 @@
 ---
 title: "Sedation with Benzodiazepines in MICU"
-subtitle: "Analysis for Alcalde"
 author: "Elizabeth Franco, Jen Cortes"
 date: '`r format(Sys.Date(), "%B %d, %Y")`'
-output: html_document
+output: pdf_document
+subtitle: Analysis for Alcalde
 ---
 
 ```{r echo=FALSE, warning=FALSE, message=FALSE, results='asis'}
@@ -31,12 +31,11 @@ Data is evaluated using the Chi-squared test.
 ## Results
 
 ```{r echo=FALSE, warning=FALSE}
-temp <- data.demograph %>%
-    mutate(group = ifelse(bzd == TRUE, "BZD", "No BZD"))
-my.group <- temp$group
-temp <- select(temp, -pie.id, -bzd, -diagnosis)
+test <- data.demograph %>%
+    mutate(group = ifelse(bzd == TRUE, "BZD", "No BZD")) %>%
+    select(-pie.id, -bzd, -diagnosis)
 
-results <- analyze_data(temp)
+results <- analyze_data(test)
 pander(results)
 ```
 
@@ -44,48 +43,13 @@ pander(results)
 
 ```{r echo=FALSE, warning=FALSE}
 sed <- data.sedatives %>% 
-    mutate(group = factor(ifelse(bzd == TRUE, "BZD", "No BZD"))) %>%
+    mutate(group = ifelse(bzd == TRUE, "BZD", "No BZD")) %>%
     select(med, group, time.wt.avg.rate:total.dose) %>%
     slice_rows("med") %>%
     by_slice(analyze_data)
 
 names(sed$.out) <- sed$med
-
 pander(sed$.out)
-```
-
-### Test
-
-```{r eval=FALSE, echo=FALSE}
-pander(flatten(sed2$.out))
-
-```
-
-
-```{r eval=FALSE, echo=FALSE}
-library(purrr)
-library(broom)
-
-temp <- data.demograph %>%
-    mutate(group = ifelse(bzd == TRUE, "BZD", "No BZD")) %>%
-    group_by(group) %>%
-    select(-bzd, -pie.id)
-
-
-
-cont <- map_lgl(temp, is.numeric)
-
-test <- keep(temp, is.numeric) %>% 
-    bind_cols(select(temp, group)) %>% 
-    # group_by(group) %>%
-    # do(tidy(summary(.)))
-    
-    slice_rows("group") %>% 
-    by_slice(map, summary)
-
-test2 <- temp %>% split(.$group) %>% map(summary)
-
-pander(test$.out)
 ```
 
 ## References
