@@ -12,6 +12,7 @@ library(pander)
 library(FSA)
 library(dplyr)
 library(purrr)
+library(broom)
 if (!exists("data.demograph")) data.demograph <- readRDS("Analysis/data_demograph.Rds")
 if (!exists("data.assessments")) data.assessments <- readRDS("Analysis/data_assessments.Rds")
 if (!exists("data.lfts")) data.lfts <- readRDS("Analysis/data_lfts.Rds")
@@ -50,6 +51,65 @@ sed <- data.sedatives %>%
 
 names(sed$.out) <- sed$med
 pander(sed$.out)
+```
+
+## test2
+
+```{r}
+library(tableone)
+test <- data.demograph %>%
+    mutate(group = ifelse(bzd == TRUE, "BZD", "No BZD")) %>%
+    select(-pie.id, -bzd, -diagnosis)
+
+vars <- names(test)
+
+cont <- keep(test, is.numeric)
+contVars <- names(cont)
+
+cat <- discard(test, is.numeric)
+catVars <- names(cat)
+
+tab <- CreateTableOne(vars, strata = "group", data = test, factorVars = catVars)
+print(tab)
+pander(tab)
+```
+
+
+```{r}
+# sed.test <- data.sedatives %>% 
+#     mutate(group = ifelse(bzd == TRUE, "BZD", "No BZD")) %>%
+#     select(med, group, time.wt.avg.rate:total.dose) %>%
+#     slice_rows(c("med", "group")) %>%
+#     # by_slice(map_if, .p = is.null, .f = length)
+#     by_slice(dmap, Summarize, .collate = "rows")
+# 
+# pander(sed.test)
+# 
+# test <- data.demograph %>%
+#     mutate(group = ifelse(bzd == TRUE, "BZD", "No BZD")) %>%
+#     select(-pie.id, -bzd, -diagnosis) %>%
+#     slice_rows("group") %>%
+#     by_slice(map, Summarize)
+
+    
+    # filter(med != "midazolam", med != "lorazepam") %>%
+    # slice_rows("med") %>%
+    # dmap(t.test, .$time.wt.avg.rate ~ .$group)
+    # by_slice(dmap_at, c(3:6), t.test, .x ~ group)
+    
+    # group_by(med) %>%
+    # do(twa = t.test(.$time.wt.avg.rate ~ .$group),
+    #    total = t.test(.$total.dose ~ .$group)) %>%
+    # dmap_at(2:3, tidy)
+
+# sed.tidy <- sed.test %>% tidy(ttest)
+# sed.aug <- sed.test %>% augment(ttest)
+# sed.glnc <- sed.test %>% glance(ttest)
+
+    # summarize_each(funs(t.test(. ~ group)), time.wt.avg.rate:total.dose)
+
+
+
 ```
 
 ## References
