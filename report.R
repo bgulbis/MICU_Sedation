@@ -8,10 +8,10 @@ library(purrr)
 library(broom)
 
 # get data
-if (!exists("data.demograph")) data.demograph <- readRDS("Analysis/data_demograph.Rds")
-if (!exists("data.assessments")) data.assessments <- readRDS("Analysis/data_assessments.Rds")
-if (!exists("data.lfts")) data.lfts <- readRDS("Analysis/data_lfts.Rds")
-if (!exists("data.sedatives")) data.sedatives <- readRDS("Analysis/data_sedatives.Rds")
+# if (!exists("data.demograph")) data.demograph <- readRDS("Analysis/data_demograph.Rds")
+# if (!exists("data.assessments")) data.assessments <- readRDS("Analysis/data_assessments.Rds")
+# if (!exists("data.lfts")) data.lfts <- readRDS("Analysis/data_lfts.Rds")
+# if (!exists("data.sedatives")) data.sedatives <- readRDS("Analysis/data_sedatives.Rds")
 
 normal_test <- function(x) {
     y <- keep(x, is.numeric)
@@ -23,58 +23,67 @@ normal_test <- function(x) {
         select(data.name, method, statistic, p.value)
 }
 
-project <- pot("Sedation with Benzodiazepines in MICU", 
-               textProperties(font.weight = "bold", font.size = 14, font.family = "Calibri"))
-authors <- pot("Elizabeth Franco, Jen Cortes", 
-               textProperties(font.weight = "bold", font.size = 12, font.family = "Calibri"))
-date <- pot(format(Sys.Date(), "%B %d, %Y"),
-            textProperties(font.weight = "bold", font.size = 11, font.family = "Calibri"))
+result_table <- function(mydoc, test, table.title) {
+    vars <- names(test)
+    vars <- vars[!(vars %in% c("pie.id", "group"))]
+    
+    cont <- keep(test, is.numeric)
+    contVars <- names(cont)
+    
+    cram <- keep(test, is.logical)
+    cramVars <- names(cram)
+    
+    not.nrmlVars <- ""
+    
+    # if there are continuous variables, perform normality testing
+    if (length(cont) > 0) {
+        nrml <- normal_test(cont)
+        
+        not.nrml <- filter(nrml, p.value < 0.05)
+        not.nrmlVars <- not.nrml$data.name
+    }
+    
+    cat <- discard(test, is.numeric)
+    catVars <- names(cat)
+    
+    tab <- CreateTableOne(vars, strata = "group", data = test, factorVars = catVars)
+    tab1 <- print(tab, printToggle = FALSE, nonnormal = not.nrmlVars, cramVars = cramVars)
+    
+    mydoc <- addParagraph(mydoc, "")
+    mydoc <- addTitle(mydoc, table.title, level = 3)
+    mytable <- FlexTable(tab1, add.rownames = TRUE, header.cell.props = cellProperties(background.color = "#003366"), 
+                         header.text.props = textBold(color = "white", font.family = "Calibri"))
+    mytable[] <- textProperties(font.family = "Calibri", font.size = 10)
+    mytable <- setZebraStyle(mytable, odd = "#eeeeee", even = "white")
+    
+    addFlexTable(mydoc, mytable)
+}
 
-test <- data.demograph %>%
-    mutate(group = ifelse(bzd == TRUE, "BZD", "No BZD")) %>%
-    select(-pie.id, -bzd, -diagnosis)
+project <- "Sedation with Benzodiazepines in MICU"
+authors <- "Elizabeth Franco, Jen Cortes"
+date <- format(Sys.Date(), "%B %d, %Y")
 
-vars <- names(test)
-vars <- vars[vars != "group"]
-
-cont <- keep(test, is.numeric)
-contVars <- names(cont)
-
-# normality testing
-nrml <- normal_test(cont)
-
-not.nrml <- filter(nrml, p.value < 0.05)
-not.nrmlVars <- not.nrml$data.name
-
-cat <- discard(test, is.numeric)
-catVars <- names(cat)
-
-tab <- CreateTableOne(vars, strata = "group", data = test, factorVars = catVars)
-tab1 <- print(tab, printToggle = FALSE, nonnormal = not.nrmlVars)
 # make Word document
 mydoc <- docx(template = "Templates/results_template.docx")
 # styles(mydoc)
-mydoc <- declareTitlesStyles(mydoc, stylenames = c("Title", "Heading1", "Heading2"))
+mydoc <- declareTitlesStyles(mydoc, stylenames = c("TitleDoc", "SubtitleCentered", "rTableLegend"))
 
-# title
+mydoc <- addParagraph(mydoc, project, stylename = "TitleDoc", bookmark = "start")
+mydoc <- addTitle(mydoc, authors, level = 2)
+mydoc <- addTitle(mydoc, date, level = 2)
 
-mydoc <- addParagraph(mydoc, project, bookmark = "Start", par.properties = parProperties(text.align = "center"))
-mydoc <- addParagraph(mydoc, authors, par.properties = parProperties(text.align = "center"))
-mydoc <- addParagraph(mydoc, date, par.properties = parProperties(text.align = "center"))
+# demographics ----
+mydoc <- result_table(mydoc, analyze.demograph, "Demographics")
 
-# add table
-mydoc <- addTitle(mydoc, "Results", level = 3)
-mytable <- FlexTable(tab1, add.rownames = TRUE, header.cell.props = cellProperties(background.color = "#003366"), 
-                     header.text.props = textBold(color = "white", font.family = "Calibri"))
-mytable[] <- textProperties(font.family = "Calibri")
-mytable <- setZebraStyle(mytable, odd = "#eeeeee", even = "white")
+# pmh ----
+mydoc <- result_table(mydoc, analyze.pmh, "Past Medical History")
 
-mydoc <- addFlexTable(mydoc, mytable)
+# home meds ----
+mydoc <- result_table(mydoc, analyze.home.meds, "Home Medications")
 
 # sedatives ----
 
-sed <- data.sedatives %>% 
-    mutate(group = ifelse(bzd == TRUE, "BZD", "No BZD")) %>%
+sed <- analyze.sedatives %>% 
     select(med, group, time.wt.avg.rate:total.dose) 
     
 vars <- names(sed)
@@ -85,26 +94,26 @@ test <- sed %>%
     slice_rows("med") %>%
     by_slice(normal_test)
 
-x <- NULL
+# x <- NULL
 for(i in 1:length(test$med)) {
     tbl <- filter(sed, med == test$med[[i]]) %>%
         select(-med)
-    vars <- names(tbl)
-    vars <- vars[vars != "group"]
-    tbl1 <- CreateTableOne(vars, strata = "group", data = tbl)
-    y <- matrix(c("", "", "", ""), ncol = 4, dimnames = list(as.character(test$med[[i]])))
-    y <- rbind(y, print(tbl1, printToggle = FALSE, nonnormal = vars))
-    x <- rbind(x, y)
+    
+    mydoc <- result_table(mydoc, tbl, paste0("Continuous Medications: ", as.character(test$med[[i]])))
 }
 
+ref <- pot("Data processed using ") + R.version.string + " on a " + 
+    .Platform$OS.type + " " + .Platform$r_arch + " system."
+prepby <- "Prepared by: Brian Gulbis"
+citeTxt <- pot(citation())
+
 mydoc <- addParagraph(mydoc, "")
-
-mydoc <- addTitle(mydoc, "Sedatives", level = 3)
-mytable <- FlexTable(x, add.rownames = TRUE, header.cell.props = cellProperties(background.color = "#003366"), 
-                     header.text.props = textBold(color = "white", font.family = "Calibri"))
-mytable[] <- textProperties(font.family = "Calibri")
-mytable <- setZebraStyle(mytable, odd = "#eeeeee", even = "white")
-
-mydoc <- addFlexTable(mydoc, mytable)
+mydoc <- addParagraph(mydoc, "Citation", stylename = "SectionTitle")
+mydoc <- addParagraph(mydoc, prepby)
+mydoc <- addParagraph(mydoc, "")
+mydoc <- addParagraph(mydoc, ref)
+mydoc <- addParagraph(mydoc, "")
+mydoc <- addParagraph(mydoc, "To cite R in publications use:")
+mydoc <- addParagraph(mydoc, citeTxt)
 
 writeDoc(mydoc, file = "Analysis/results.docx")

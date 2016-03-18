@@ -29,4 +29,24 @@ tmp.manual <- raw.manual %>%
 data.manual <- filter(tmp.manual, exclude == FALSE) %>%
     select(-exclude, -arf)
 
+# final list of included patients
 pts.include.man <- data.manual$pie.id
+
+analyze.demograph <- data.demograph %>%
+    filter(pie.id %in% pts.include.man) %>%
+    mutate(group = factor(ifelse(bzd == TRUE, "BZD", "No BZD"))) %>%
+    inner_join(select(data.manual, pie.id, diagnosis.categories), by = "pie.id") %>%
+    select(pie.id, group, everything(), -bzd)
+    
+# make table with patients and group to bind to other data tables
+data.include <- select(analyze.demograph, pie.id, group)
+
+analyze.pmh <- inner_join(data.include, data.pmh, by = "pie.id") %>%
+    inner_join(select(data.manual, pie.id, -starts_with("diagnosis"), -starts_with("organ")), by = "pie.id")
+    
+analyze.home.meds <- inner_join(data.include, data.home.meds, by = "pie.id")
+
+analyze.apache <- inner_join(data.include, data.apache, by = "pie.id") %>%
+    inner_join(select(data.manual, pie.id, starts_with("organ")), by = "pie.id")
+
+analyze.sedatives <- inner_join(data.include, data.sedatives, by = "pie.id")
