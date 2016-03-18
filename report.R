@@ -23,6 +23,12 @@ normal_test <- function(x) {
         select(data.name, method, statistic, p.value)
 }
 
+project <- pot("Sedation with Benzodiazepines in MICU", 
+               textProperties(font.weight = "bold", font.size = 14, font.family = "Calibri"))
+authors <- pot("Elizabeth Franco, Jen Cortes", 
+               textProperties(font.weight = "bold", font.size = 12, font.family = "Calibri"))
+date <- pot(format(Sys.Date(), "%B %d, %Y"),
+            textProperties(font.weight = "bold", font.size = 11, font.family = "Calibri"))
 
 test <- data.demograph %>%
     mutate(group = ifelse(bzd == TRUE, "BZD", "No BZD")) %>%
@@ -46,9 +52,15 @@ catVars <- names(cat)
 tab <- CreateTableOne(vars, strata = "group", data = test, factorVars = catVars)
 tab1 <- print(tab, printToggle = FALSE, nonnormal = not.nrmlVars)
 # make Word document
-mydoc <- docx()
-styles(mydoc)
-mydoc <- declareTitlesStyles(mydoc, stylenames = c("Titre1", "Titre2", "rTableLegend"))
+mydoc <- docx(template = "Templates/results_template.docx")
+# styles(mydoc)
+mydoc <- declareTitlesStyles(mydoc, stylenames = c("Title", "Heading1", "Heading2"))
+
+# title
+
+mydoc <- addParagraph(mydoc, project, bookmark = "Start", par.properties = parProperties(text.align = "center"))
+mydoc <- addParagraph(mydoc, authors, par.properties = parProperties(text.align = "center"))
+mydoc <- addParagraph(mydoc, date, par.properties = parProperties(text.align = "center"))
 
 # add table
 mydoc <- addTitle(mydoc, "Results", level = 3)
