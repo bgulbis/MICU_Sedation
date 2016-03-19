@@ -9,6 +9,7 @@ library(lubridate)
 library(BGTools)
 library(tidyr)
 library(MESS)
+library(ReporteRs)
 
 # set the location name for MICU
 micu <- "Cullen 2 E Medical Intensive Care Unit"
