@@ -105,7 +105,7 @@ for(i in 1:length(test$med)) {
 ref <- pot("Data processed using ") + R.version.string + " on a " + 
     .Platform$OS.type + " " + .Platform$r_arch + " system."
 prepby <- "Prepared by: Brian Gulbis"
-citeTxt <- pot(citation())
+citeTxt <- pot(citation()$textVersion)
 
 mydoc <- addParagraph(mydoc, "")
 mydoc <- addParagraph(mydoc, "Citation", stylename = "SectionTitle")
@@ -113,7 +113,7 @@ mydoc <- addParagraph(mydoc, prepby)
 mydoc <- addParagraph(mydoc, "")
 mydoc <- addParagraph(mydoc, ref)
 mydoc <- addParagraph(mydoc, "")
-mydoc <- addParagraph(mydoc, "To cite R in publications use:")
+mydoc <- addParagraph(mydoc, "To cite R in publications, use:")
 mydoc <- addParagraph(mydoc, citeTxt)
 
 writeDoc(mydoc, file = "Analysis/results.docx")
