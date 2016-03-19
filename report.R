@@ -2,61 +2,22 @@
 
 source("library.R")
 
+# create docx object with project title and authors
 project <- "Sedation with Benzodiazepines in MICU"
 authors <- "Elizabeth Franco, Jen Cortes"
-date <- format(Sys.Date(), "%B %d, %Y")
 
-# make Word document
-mydoc <- docx(template = "Templates/results_template.docx")
-# styles(mydoc)
-mydoc <- declareTitlesStyles(mydoc, stylenames = c("TitleDoc", "SubtitleCentered", "rTableLegend"))
+mydoc <- result_docx(project, authors)
 
-mydoc <- addParagraph(mydoc, project, stylename = "TitleDoc", bookmark = "start")
-mydoc <- addTitle(mydoc, authors, level = 2)
-mydoc <- addTitle(mydoc, date, level = 2)
-
-# demographics ----
+# add results tables
 mydoc <- result_table(mydoc, analyze.demograph, "Demographics")
-
-# pmh ----
 mydoc <- result_table(mydoc, analyze.pmh, "Past Medical History")
-
-# home meds ----
 mydoc <- result_table(mydoc, analyze.home.meds, "Home Medications")
 
-# sedatives ----
+# add result table for each continuous agent
+mydoc <- result_table2(mydoc, analyze.sedatives, "med", "Continuous Medications")
 
-sed <- analyze.sedatives %>% 
-    select(med, group, time.wt.avg.rate:total.dose) 
-    
-vars <- names(sed)
-vars <- vars[!(vars %in% c("med", "group"))]
+# add citation
+mydoc <- add_rcitation(mydoc)
 
-test <- sed %>%
-    select(-group) %>%
-    group_by(med) %>%
-    summarize(count = n())
-
-# x <- NULL
-for(i in 1:length(test$med)) {
-    tbl <- filter(sed, med == test$med[[i]]) %>%
-        select(-med)
-    
-    mydoc <- result_table(mydoc, tbl, paste0("Continuous Medications: ", as.character(test$med[[i]])))
-}
-
-ref <- pot("Data processed using ") + R.version.string + " on a " + 
-    .Platform$OS.type + " " + .Platform$r_arch + " system."
-prepby <- "Prepared by: Brian Gulbis"
-citeTxt <- pot(citation()$textVersion)
-
-mydoc <- addParagraph(mydoc, "")
-mydoc <- addParagraph(mydoc, "Citation", stylename = "SectionTitle")
-mydoc <- addParagraph(mydoc, prepby)
-mydoc <- addParagraph(mydoc, "")
-mydoc <- addParagraph(mydoc, ref)
-mydoc <- addParagraph(mydoc, "")
-mydoc <- addParagraph(mydoc, "To cite R in publications, use:")
-mydoc <- addParagraph(mydoc, citeTxt)
-
+# write docx to Word
 writeDoc(mydoc, file = "Analysis/results.docx")

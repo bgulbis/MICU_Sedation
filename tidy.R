@@ -13,7 +13,7 @@ raw.demograph <- list.files(data.dir, pattern="^demographics", full.names=TRUE) 
     bind_rows %>%
     transmute(pie.id = PowerInsight.Encounter.Id,
               age = as.numeric(Age..Years..Visit.),
-              sex = factor(Sex),
+              sex = factor(Sex, exclude = "Unknown"),
               race = factor(Race, exclude = ""),
               los = as.numeric(LOS..Actual.),
               disposition = factor(Discharge.Disposition, exclude = ""),

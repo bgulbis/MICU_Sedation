@@ -49,7 +49,8 @@ analyze.home.meds <- inner_join(data.include, data.home.meds, by = "pie.id")
 analyze.apache <- inner_join(data.include, data.apache, by = "pie.id") %>%
     inner_join(select(data.manual, pie.id, starts_with("organ")), by = "pie.id")
 
-analyze.sedatives <- inner_join(data.include, data.sedatives, by = "pie.id")
+analyze.sedatives <- inner_join(data.include, data.sedatives, by = "pie.id") %>%
+    select(pie.id, med, group, time.wt.avg.rate:total.dose) 
 
 # export data to csv files
 write.csv(analyze.demograph, paste0(export.dir, "data_demograph.csv"), row.names = FALSE)
