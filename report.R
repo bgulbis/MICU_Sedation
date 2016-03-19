@@ -16,15 +16,5 @@ mydoc <- result_table(mydoc, analyze.home.meds, "Home Medications")
 # add result table for each continuous agent
 mydoc <- result_table2(mydoc, analyze.sedatives, "med", "Continuous Medications")
 
-mod <- lm(unit.los ~ age + sex + group, data = analyze.demograph)
-mydoc <- result_regrmod(mydoc, mod, "Linear Model for Unit LOS", FALSE)
-
-mod <- glm(cam.icu.pos ~ age + sex + group, data = analyze.demograph, family = "binomial")
-mydoc <- result_regrmod(mydoc, mod, "GLM for CAM-ICU")
-
-# add citation
-mydoc <- add_rcitation(mydoc)
-
-
-# write docx to Word
-writeDoc(mydoc, file = "Analysis/results.docx")
+# add citation and write docx to Word
+write_docx(mydoc, file = "Analysis/results.docx")
