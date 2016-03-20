@@ -1,9 +1,9 @@
 ---
 title: "Sedation with Benzodiazepines in MICU"
-subtitle: "Analysis for Alcalde"
 author: "Elizabeth Franco, Jen Cortes"
 date: '`r format(Sys.Date(), "%B %d, %Y")`'
-output: html_document
+output: pdf_document
+subtitle: Analysis for Alcalde
 ---
 
 ```{r echo=FALSE, warning=FALSE, message=FALSE, results='asis'}
@@ -11,6 +11,8 @@ library(BGTools)
 library(pander)
 library(FSA)
 library(dplyr)
+library(purrr)
+library(broom)
 if (!exists("data.demograph")) data.demograph <- readRDS("Analysis/data_demograph.Rds")
 if (!exists("data.assessments")) data.assessments <- readRDS("Analysis/data_assessments.Rds")
 if (!exists("data.lfts")) data.lfts <- readRDS("Analysis/data_lfts.Rds")
@@ -30,40 +32,84 @@ Data is evaluated using the Chi-squared test.
 ## Results
 
 ```{r echo=FALSE, warning=FALSE}
-temp <- data.demograph %>%
-    mutate(group = ifelse(bzd == TRUE, "BZD", "No BZD"))
-my.group <- temp$group
-temp <- select(temp, -group, -bzd)
+test <- data.demograph %>%
+    mutate(group = ifelse(bzd == TRUE, "BZD", "No BZD")) %>%
+    select(-pie.id, -bzd, -diagnosis)
 
-results <- analyze_data(temp, my.group)
+results <- analyze_data(test)
 pander(results)
+```
+
+## Sedatives
+
+```{r echo=FALSE, warning=FALSE}
+sed <- data.sedatives %>% 
+    mutate(group = ifelse(bzd == TRUE, "BZD", "No BZD")) %>%
+    select(med, group, time.wt.avg.rate:total.dose) %>%
+    slice_rows("med") %>%
+    by_slice(analyze_data)
+
+names(sed$.out) <- sed$med
+pander(sed$.out)
+```
+
+## test2
+
+```{r}
+library(tableone)
+test <- data.demograph %>%
+    mutate(group = ifelse(bzd == TRUE, "BZD", "No BZD")) %>%
+    select(-pie.id, -bzd, -diagnosis)
+
+vars <- names(test)
+
+cont <- keep(test, is.numeric)
+contVars <- names(cont)
+
+cat <- discard(test, is.numeric)
+catVars <- names(cat)
+
+tab <- CreateTableOne(vars, strata = "group", data = test, factorVars = catVars)
+print(tab)
+pander(tab)
 ```
 
 
 ```{r}
-library(purrr)
-library(broom)
+# sed.test <- data.sedatives %>% 
+#     mutate(group = ifelse(bzd == TRUE, "BZD", "No BZD")) %>%
+#     select(med, group, time.wt.avg.rate:total.dose) %>%
+#     slice_rows(c("med", "group")) %>%
+#     # by_slice(map_if, .p = is.null, .f = length)
+#     by_slice(dmap, Summarize, .collate = "rows")
+# 
+# pander(sed.test)
+# 
+# test <- data.demograph %>%
+#     mutate(group = ifelse(bzd == TRUE, "BZD", "No BZD")) %>%
+#     select(-pie.id, -bzd, -diagnosis) %>%
+#     slice_rows("group") %>%
+#     by_slice(map, Summarize)
 
-temp <- data.demograph %>%
-    mutate(group = ifelse(bzd == TRUE, "BZD", "No BZD")) %>%
-    group_by(group) %>%
-    select(-bzd, -pie.id)
-
-
-
-cont <- map_lgl(temp, is.numeric)
-
-test <- keep(temp, is.numeric) %>% 
-    bind_cols(select(temp, group)) %>% 
-    # group_by(group) %>%
-    # do(tidy(summary(.)))
     
-    slice_rows("group") %>% 
-    by_slice(map, summary)
+    # filter(med != "midazolam", med != "lorazepam") %>%
+    # slice_rows("med") %>%
+    # dmap(t.test, .$time.wt.avg.rate ~ .$group)
+    # by_slice(dmap_at, c(3:6), t.test, .x ~ group)
+    
+    # group_by(med) %>%
+    # do(twa = t.test(.$time.wt.avg.rate ~ .$group),
+    #    total = t.test(.$total.dose ~ .$group)) %>%
+    # dmap_at(2:3, tidy)
 
-test2 <- temp %>% split(.$group) %>% map(summary)
+# sed.tidy <- sed.test %>% tidy(ttest)
+# sed.aug <- sed.test %>% augment(ttest)
+# sed.glnc <- sed.test %>% glance(ttest)
 
-pander(test$.out)
+    # summarize_each(funs(t.test(. ~ group)), time.wt.avg.rate:total.dose)
+
+
+
 ```
 
 ## References

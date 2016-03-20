@@ -29,4 +29,33 @@ tmp.manual <- raw.manual %>%
 data.manual <- filter(tmp.manual, exclude == FALSE) %>%
     select(-exclude, -arf)
 
+# final list of included patients
 pts.include.man <- data.manual$pie.id
+
+analyze.demograph <- data.demograph %>%
+    filter(pie.id %in% pts.include.man) %>%
+    mutate(group = factor(ifelse(bzd == TRUE, "BZD", "No BZD"))) %>%
+    inner_join(select(data.manual, pie.id, diagnosis.categories), by = "pie.id") %>%
+    select(pie.id, group, everything(), -bzd)
+
+# make table with patients and group to bind to other data tables
+data.include <- select(analyze.demograph, pie.id, group)
+
+analyze.pmh <- inner_join(data.include, data.pmh, by = "pie.id") %>%
+    inner_join(select(data.manual, pie.id, -starts_with("diagnosis"), -starts_with("organ")), by = "pie.id")
+    
+analyze.home.meds <- inner_join(data.include, data.home.meds, by = "pie.id")
+
+analyze.apache <- inner_join(data.include, data.apache, by = "pie.id") %>%
+    inner_join(select(data.manual, pie.id, starts_with("organ")), by = "pie.id")
+
+analyze.sedatives <- inner_join(data.include, data.sedatives, by = "pie.id") %>%
+    select(pie.id, med, group, time.wt.avg.rate:total.dose) 
+
+# export data to csv files
+write.csv(analyze.demograph, paste0(export.dir, "data_demograph.csv"), row.names = FALSE)
+write.csv(analyze.pmh, paste0(export.dir, "data_pmh.csv"), row.names = FALSE)
+write.csv(analyze.home.meds, paste0(export.dir, "data_home_meds.csv"), row.names = FALSE)
+write.csv(analyze.apache, paste0(export.dir, "data_apache.csv"), row.names = FALSE)
+write.csv(analyze.sedatives, paste0(export.dir, "data_sedatives.csv"), row.names = FALSE)
+
