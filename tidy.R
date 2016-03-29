@@ -78,6 +78,8 @@ raw.vitals <- list.files(data.dir, pattern="^vitals", full.names=TRUE) %>%
               result = as.numeric(Clinical.Event.Result),
               vital.datetime = mdy_hms(Clinical.Event.End.Date.Time))
 
+raw.labs.abg <- read_edw_data(data.dir, "labs_abg", "labs")
+    
 # output patient list ----------------------------------------------------------
 tmp <- raw.demograph %>%
     select(fin, age:disposition)
@@ -229,13 +231,18 @@ data.demograph <- inner_join(data.demograph, tmp.lfts.sum, by = "pie.id")
 # APACHE-II --------------------------------------------------------------------
 # most abnormal values in first 24 hours of ICU stay
 
-labs.list <- c("Creatinine Lvl", "Glasgow Coma Score", "PaO2", "POC A pH", 
-               "POC A PO2", "Potassium Lvl", "Sodium Lvl", "WBC", "Hct", "FIO2 (%)")
+labs.list <- c("creatinine lvl", "glasgow coma score", "pao2", "poc a ph", 
+               "poc a po2", "poc a pco2", "potassium lvl", "sodium lvl", "wbc", 
+               "hct", "fio2 (%)")
 
-tmp.labs <- raw.labs
+tmp.labs <- mutate(raw.labs, lab = str_to_lower(as.character(lab)))
+tmp.abg <- anti_join(raw.labs.abg, tmp.labs, by = c("pie.id", "lab.datetime", "lab")) %>%
+    rename(result = lab.result)
+tmp.labs <- bind_rows(tmp.labs, tmp.abg) %>%
+    mutate(lab = ifelse(lab == "poc a po2", "pao2", lab))
 
-tmp <- !is.na(str_extract(levels(tmp.labs$lab),"POC A PO2"))
-levels(tmp.labs$lab)[tmp == TRUE] <- "PaO2"
+# tmp <- !is.na(str_extract(levels(tmp.labs$lab),"poc a po2"))
+# levels(tmp.labs$lab)[tmp == TRUE] <- "pao2"
 
 # get min and max lab values in first 24 hours of ICU admission
 tmp.apache.labs <- tmp.labs %>%
@@ -261,15 +268,16 @@ tmp.apache.labs <- inner_join(tmp.min, tmp.max, by = "pie.id")
 
 names(tmp.apache.labs) <- str_replace_all(names(tmp.apache.labs), "\\.x", "\\.min")
 names(tmp.apache.labs) <- str_replace_all(names(tmp.apache.labs), "\\.y", "\\.max")
-names(tmp.apache.labs) <- str_replace_all(names(tmp.apache.labs), "Creatinine Lvl", "scr")
-names(tmp.apache.labs) <- str_replace_all(names(tmp.apache.labs), "Glasgow Coma Score", "gcs")
-names(tmp.apache.labs) <- str_replace_all(names(tmp.apache.labs), "PaO2", "pao2")
-names(tmp.apache.labs) <- str_replace_all(names(tmp.apache.labs), "POC A pH", "ph")
-names(tmp.apache.labs) <- str_replace_all(names(tmp.apache.labs), "Potassium Lvl", "k")
-names(tmp.apache.labs) <- str_replace_all(names(tmp.apache.labs), "Sodium Lvl", "na")
-names(tmp.apache.labs) <- str_replace_all(names(tmp.apache.labs), "WBC", "wbc")
-names(tmp.apache.labs) <- str_replace_all(names(tmp.apache.labs), "Hct", "hct")
-names(tmp.apache.labs) <- str_replace_all(names(tmp.apache.labs), "FIO2 \\(%\\)", "fio2")
+names(tmp.apache.labs) <- str_replace_all(names(tmp.apache.labs), "creatinine lvl", "scr")
+names(tmp.apache.labs) <- str_replace_all(names(tmp.apache.labs), "glasgow coma score", "gcs")
+# names(tmp.apache.labs) <- str_replace_all(names(tmp.apache.labs), "PaO2", "pao2")
+names(tmp.apache.labs) <- str_replace_all(names(tmp.apache.labs), "poc a ph", "ph")
+names(tmp.apache.labs) <- str_replace_all(names(tmp.apache.labs), "poc a pco2", "pco2")
+names(tmp.apache.labs) <- str_replace_all(names(tmp.apache.labs), "potassium lvl", "k")
+names(tmp.apache.labs) <- str_replace_all(names(tmp.apache.labs), "sodium lvl", "na")
+# names(tmp.apache.labs) <- str_replace_all(names(tmp.apache.labs), "WBC", "wbc")
+# names(tmp.apache.labs) <- str_replace_all(names(tmp.apache.labs), "Hct", "hct")
+names(tmp.apache.labs) <- str_replace_all(names(tmp.apache.labs), "fio2 \\(%\\)", "fio2")
 
 # combine all temperatures and MAPs
 tmp.vitals <- raw.vitals
