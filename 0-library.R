@@ -17,6 +17,7 @@ micu <- "Cullen 2 E Medical Intensive Care Unit"
 
 # set the directory containing the data
 screen.dir <- "Screen"
+include.dir <- "Include"
 exclude.dir <- "Exclude"
 data.dir <- "Data"
 export.dir <- "Export"
