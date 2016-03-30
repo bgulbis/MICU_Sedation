@@ -3,10 +3,12 @@
 ##
 ## source file for all libraries needed for data tidying and analysis
 ## 
+library(BGTools)
+library(readxl)
+library(readr)
 library(dplyr)
 library(stringr)
 library(lubridate)
-library(BGTools)
 library(tidyr)
 library(MESS)
 
@@ -15,7 +17,7 @@ micu <- "Cullen 2 E Medical Intensive Care Unit"
 
 # set the directory containing the data
 data.dir <- "Data"
-export.dir <- "Export/"
+export.dir <- "Export"
 analysis.dir <- "Analysis"
 
 # compress medication data files
@@ -60,7 +62,7 @@ total_dose <- function(drug, auc, weight) {
     
     if (drug == "propofol") {
         return(auc * weight * 60 / 1000)
-    } else if (drug == "dexmedetomidine" | drug == "ketamine") {
+    } else if (drug == "dexmedetomidine" || drug == "ketamine") {
         return(auc * weight)
     } else {
         return(auc)

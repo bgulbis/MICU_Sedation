@@ -1,7 +1,6 @@
 # manual.R
 
-source("library.R")
-library(readxl)
+source("0-library.R")
 
 # raw.manual <- read.csv("Manual/manual_review.csv")
 raw.manual <- read_excel("Manual/manual_review.xlsx") %>%
