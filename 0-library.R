@@ -24,6 +24,7 @@ export.dir <- "Export"
 analysis.dir <- "Analysis"
 
 # compress medication data files
+gzip_files(include.dir)
 gzip_files(exclude.dir)
 gzip_files(data.dir)
 
