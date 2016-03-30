@@ -17,11 +17,13 @@ micu <- "Cullen 2 E Medical Intensive Care Unit"
 
 # set the directory containing the data
 screen.dir <- "Screen"
+exclude.dir <- "Exclude"
 data.dir <- "Data"
 export.dir <- "Export"
 analysis.dir <- "Analysis"
 
 # compress medication data files
+gzip_files(exclude.dir)
 gzip_files(data.dir)
 
 # function used to update MICU depart time if calculated depart time is NA
