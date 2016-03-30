@@ -19,6 +19,7 @@ micu <- "Cullen 2 E Medical Intensive Care Unit"
 screen.dir <- "Screen"
 include.dir <- "Include"
 exclude.dir <- "Exclude"
+lookup.dir <- "Lookup"
 data.dir <- "Data"
 export.dir <- "Export"
 analysis.dir <- "Analysis"
@@ -27,15 +28,6 @@ analysis.dir <- "Analysis"
 gzip_files(include.dir)
 gzip_files(exclude.dir)
 gzip_files(data.dir)
-
-# function used to update MICU depart time if calculated depart time is NA
-get_depart <- function(x, y) {
-    if (is.na(y)) {
-        x
-    } else {
-        y
-    }
-}
 
 # function to convert drugs documented in non-standard rates to equivalent doses
 convert_units <- function(drug, unit, dose, weight) {

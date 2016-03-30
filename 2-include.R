@@ -35,15 +35,16 @@ limit.vent <- tmp.vent %>%
     filter(vent.duration >= 24) %>%
     distinct(pie.id) 
 
-# med inclusion criteria ----
-raw.meds.incl <- read_edw_data(include.dir, "meds_continuous")
+rm(raw.vent)
 
-limit.meds <- filter(raw.meds.incl, med.rate.units != "") %>%
+# med inclusion criteria ----
+limit.meds <- read_edw_data(include.dir, "meds_continuous") %>%
+    filter(med.rate.units != "") %>%
     distinct(pie.id)
 
 # eligible patients ----
-pts.eligible <- inner_join(pts.screen, limit.vent, by = "pie.id") %>%
-    inner_join(limit.meds, by = "pie.id")
+pts.eligible <- semi_join(pts.screen, limit.vent, by = "pie.id") %>%
+    semi_join(limit.meds, by = "pie.id") 
 
 eligible.pie <- concat_encounters(pts.eligible$pie.id, 750)
 print(eligible.pie)
