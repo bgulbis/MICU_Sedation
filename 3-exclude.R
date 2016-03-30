@@ -2,33 +2,25 @@
 
 source("0-library.R")
 
-## Remove patients meeting exlcusion criteria
-
-# Get location data
-raw.locations <- list.files(data.dir, pattern="^locations", full.names=TRUE) %>%
-    lapply(read.csv, colClasses="character") %>%
-    bind_rows %>%
-    transmute(pie.id = PowerInsight.Encounter.Id,
-              location = factor(Person.Location...Nurse.Unit..To., exclude = ""),
-              unit.from = factor(Person.Location...Nurse.Unit..From., exclude = ""),
-              arrival = mdy_hms(Location.Arrival.Date..amp..Time),
-              depart = mdy_hms(Location.Depart.Date..amp..Time))
+# locations ----
+raw.locations <- read_edw_data(exclude.dir, "locations")
 
 tmp.locations <- raw.locations %>%
-    filter(pie.id %in% pts.eligible$pie.id) %>%
     group_by(pie.id) %>%
-    arrange(arrival) %>%
-    mutate(diff.unit = ifelse(is.na(location) | is.na(lag(location)) | location != lag(location), TRUE, FALSE),
-       unit.count = cumsum(diff.unit)) %>%
-    ungroup %>%
+    arrange(arrive.datetime) %>%
+    mutate(diff.unit = ifelse(is.na(unit.to) | is.na(lag(unit.to)) | 
+                                  unit.to != lag(unit.to), TRUE, FALSE),
+           unit.count = cumsum(diff.unit)) %>%
     group_by(pie.id, unit.count) %>%
-    summarize(location = first(location),
-              arrival = first(arrival),
-              depart = last(depart)) %>%
-    mutate(calc.depart = lead(arrival),
-           unit.los = ifelse(is.na(calc.depart), difftime(depart, arrival, units = "days"), difftime(calc.depart, arrival, units = "days"))) %>%
-    ungroup %>%
-    group_by(pie.id)
+    summarize(location = first(unit.to),
+              arrive.datetime = first(arrive.datetime),
+              depart.recorded = last(depart.datetime)) %>%
+    mutate(depart.calculated = lead(arrive.datetime)) %>%
+    rowwise %>%
+    mutate(depart.datetime = get_depart(depart.recorded, depart.calculated),
+           unit.length.stay = difftime(depart.datetime, arrive.datetime, units = "days")) %>%
+    select(-depart.recorded, -depart.calculated) %>%
+    ungroup 
 
 ## remove patients with more than one ICU admission
 # combines multiple rows of data when the patient didn't leave ICU

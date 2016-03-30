@@ -9,20 +9,26 @@ tmp.vent <- raw.vent %>%
     filter(!is.na(vent.datetime)) %>%
     group_by(pie.id) %>%
     arrange(vent.datetime) %>%
-    mutate(diff.event = ifelse(is.na(lag(vent.event)) | vent.event != lag(vent.event), TRUE, FALSE),
+    mutate(diff.event = ifelse(is.na(lag(vent.event)) | 
+                                   vent.event != lag(vent.event), TRUE, FALSE),
            event.count = cumsum(diff.event)) %>%
-    ungroup %>%
     group_by(pie.id, event.count) %>%
     summarize(event = first(vent.event),
               first.event.datetime = first(vent.datetime), 
               last.event.datetime = last(vent.datetime)) %>%
-    ungroup %>%
     group_by(pie.id) %>%
     left_join(pts.screen, by = "pie.id") %>%
     mutate(stop.datetime = lead(last.event.datetime),
-           vent.duration = ifelse(is.na(stop.datetime), difftime(discharge.datetime, first.event.datetime, units = "hours"), difftime(stop.datetime, first.event.datetime, units = "hours"))) %>%
+           vent.duration = ifelse(is.na(stop.datetime), 
+                                  difftime(discharge.datetime, 
+                                           first.event.datetime, 
+                                           units = "hours"), 
+                                  difftime(stop.datetime, 
+                                           first.event.datetime, 
+                                           units = "hours"))) %>%
     filter(event == "vent start time") %>%
-    select(pie.id, start.datetime = first.event.datetime, stop.datetime, vent.duration) %>%
+    select(pie.id, start.datetime = first.event.datetime, stop.datetime, 
+           vent.duration) %>%
     ungroup
 
 limit.vent <- tmp.vent %>%
