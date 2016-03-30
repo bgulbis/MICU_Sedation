@@ -8,10 +8,14 @@ tmp.locations <- read_edw_data(exclude.dir, "locations")
 # determine the location history by hospital unit
 tmp.locations <- tidy_data("locations", unit.data = tmp.locations)
 
+# make sure patient had an admission to the micu
+tmp.micu <- filter(tmp.locations, location == micu) 
+
+pts.eligible <- semi_join(pts.eligible, tmp.micu, by = "pie.id")
+
 # remove patients with more than one ICU admission
-excl.mult.icu <- tmp.locations %>%
+excl.mult.icu <- tmp.micu %>%
     group_by(pie.id) %>%
-    filter(location == micu) %>%
     summarize(count.icu = n()) %>%
     filter(count.icu > 1)
     
@@ -110,9 +114,8 @@ pts.include <- anti_join(pts.include, excl.proc, by = "pie.id")
 # vent ----
 
 # check for patients who were on the vent outside of their MICU stay
-excl.vent.icu <- tmp.locations %>%
+excl.vent.icu <- tmp.micu %>%
     semi_join(pts.include, by = "pie.id") %>%
-    filter(location == micu) %>%
     inner_join(tmp.vent, by = "pie.id") %>%
     mutate(admit.vent.stop = difftime(stop.datetime, arrive.datetime, 
                                       units = "hours"),

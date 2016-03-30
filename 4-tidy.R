@@ -5,137 +5,109 @@
 
 source("0-library.R")
 
-# raw data ---------------------------------------------------------------------
-
-# Get demographics for included patients
-raw.demograph <- list.files(data.dir, pattern="^demographics", full.names=TRUE) %>%
-    lapply(read.csv, colClasses="character") %>%
-    bind_rows %>%
-    transmute(pie.id = PowerInsight.Encounter.Id,
-              age = as.numeric(Age..Years..Visit.),
-              sex = factor(Sex, exclude = "Unknown"),
-              race = factor(Race, exclude = ""),
-              los = as.numeric(LOS..Actual.),
-              disposition = factor(Discharge.Disposition, exclude = ""),
-              fin = Formatted.Financial.Nbr) 
-
-# Get height and weight data
-raw.height.weight <- list.files(data.dir, pattern="^ht_wt", full.names=TRUE) %>%
-    lapply(read.csv, colClasses="character") %>%
-    bind_rows %>%
-    transmute(pie.id = PowerInsight.Encounter.Id,
-              event = factor(Clinical.Event),
-              result = as.numeric(Clinical.Event.Result),
-              unit = factor(Clinical.Event.Result.Units),
-              event.datetime = mdy_hms(Clinical.Event.End.Date.Time))
-
-# Get home medication data
-raw.home.meds <- list.files(data.dir, pattern="^home_meds", full.names=TRUE) %>%
-    lapply(read.csv, colClasses="character") %>%
-    bind_rows %>%
-    transmute(pie.id = PowerInsight.Encounter.Id,
-              home.med = str_to_lower(Order.Catalog.Short.Description),
-              home.med.order = Order.Catalog.Mnemonic)
-
-# Get lab data
-raw.labs <- list.files(data.dir, pattern="^labs[^_exclude]", full.names=TRUE) %>%
-    lapply(read.csv, colClasses="character") %>%
-    bind_rows %>%
-    transmute(pie.id = PowerInsight.Encounter.Id,
-              lab = factor(Clinical.Event),
-              result = Clinical.Event.Result,
-              lab.datetime = mdy_hms(Clinical.Event.End.Date.Time))
-
-# Get medication data
-raw.meds.cont <- list.files(data.dir, pattern="^cont_meds", full.names=TRUE) %>%
-    lapply(read.csv, colClasses="character") %>%
-    bind_rows %>%
-    transmute(pie.id = PowerInsight.Encounter.Id,
-              med = Clinical.Event,
-              med.datetime = mdy_hms(Clinical.Event.End.Date.Time),
-              rate = as.numeric(Infusion.Rate),
-              rate.unit = factor(Infusion.Rate.Unit, exclude = ""),
-              event.id = Event.ID)
-
-# Get medication data
-raw.meds.bolus <- list.files(data.dir, pattern="^bolus_meds", full.names=TRUE) %>%
-    lapply(read.csv, colClasses="character") %>%
-    bind_rows %>%
-    transmute(pie.id = PowerInsight.Encounter.Id,
-              med = Clinical.Event,
-              med.datetime = mdy_hms(Clinical.Event.End.Date.Time),
-              dose = as.numeric(Clinical.Event.Result),
-              dose.unit = factor(Clinical.Event.Result.Units, exclude = ""),
-              route = factor(Route.of.Administration...Short, exclude = ""),
-              event.id = Event.ID)
-
-# Get vitals data
-raw.vitals <- list.files(data.dir, pattern="^vitals", full.names=TRUE) %>%
-    lapply(read.csv, colClasses="character") %>%
-    bind_rows %>%
-    transmute(pie.id = PowerInsight.Encounter.Id,
-              vital = factor(Clinical.Event),
-              result = as.numeric(Clinical.Event.Result),
-              vital.datetime = mdy_hms(Clinical.Event.End.Date.Time))
-
-raw.labs.abg <- read_edw_data(data.dir, "labs_abg", "labs")
+# # Get home medication data
+# raw.home.meds <- list.files(data.dir, pattern="^home_meds", full.names=TRUE) %>%
+#     lapply(read.csv, colClasses="character") %>%
+#     bind_rows %>%
+#     transmute(pie.id = PowerInsight.Encounter.Id,
+#               home.med = str_to_lower(Order.Catalog.Short.Description),
+#               home.med.order = Order.Catalog.Mnemonic)
+# 
+# # Get lab data
+# raw.labs <- list.files(data.dir, pattern="^labs[^_exclude]", full.names=TRUE) %>%
+#     lapply(read.csv, colClasses="character") %>%
+#     bind_rows %>%
+#     transmute(pie.id = PowerInsight.Encounter.Id,
+#               lab = factor(Clinical.Event),
+#               result = Clinical.Event.Result,
+#               lab.datetime = mdy_hms(Clinical.Event.End.Date.Time))
+# 
+# # Get medication data
+# raw.meds.cont <- list.files(data.dir, pattern="^cont_meds", full.names=TRUE) %>%
+#     lapply(read.csv, colClasses="character") %>%
+#     bind_rows %>%
+#     transmute(pie.id = PowerInsight.Encounter.Id,
+#               med = Clinical.Event,
+#               med.datetime = mdy_hms(Clinical.Event.End.Date.Time),
+#               rate = as.numeric(Infusion.Rate),
+#               rate.unit = factor(Infusion.Rate.Unit, exclude = ""),
+#               event.id = Event.ID)
+# 
+# # Get medication data
+# raw.meds.bolus <- list.files(data.dir, pattern="^bolus_meds", full.names=TRUE) %>%
+#     lapply(read.csv, colClasses="character") %>%
+#     bind_rows %>%
+#     transmute(pie.id = PowerInsight.Encounter.Id,
+#               med = Clinical.Event,
+#               med.datetime = mdy_hms(Clinical.Event.End.Date.Time),
+#               dose = as.numeric(Clinical.Event.Result),
+#               dose.unit = factor(Clinical.Event.Result.Units, exclude = ""),
+#               route = factor(Route.of.Administration...Short, exclude = ""),
+#               event.id = Event.ID)
+# 
+# # Get vitals data
+# raw.vitals <- list.files(data.dir, pattern="^vitals", full.names=TRUE) %>%
+#     lapply(read.csv, colClasses="character") %>%
+#     bind_rows %>%
+#     transmute(pie.id = PowerInsight.Encounter.Id,
+#               vital = factor(Clinical.Event),
+#               result = as.numeric(Clinical.Event.Result),
+#               vital.datetime = mdy_hms(Clinical.Event.End.Date.Time))
+# 
+# raw.labs.abg <- read_edw_data(data.dir, "labs_abg", "labs")
     
-# output patient list ----------------------------------------------------------
-tmp <- raw.demograph %>%
-    select(fin, age:disposition)
+# patient id's ----
+pts.ids <- read_edw_data(data.dir, "identifiers", "id")
 
-write.csv(tmp, paste0(export.dir, "patient_list.csv"), row.names = FALSE)
+# write_csv(pts.ids, paste0(export.dir, "patient_list.csv"))
 
-# patient demographics ---------------------------------------------------------
-data.demograph <- raw.demograph %>%
-    select(-fin) 
+# demographics ----
+tidy.demographics <- read_edw_data(data.dir, "demographics") 
 
-# MICU LOS -----------------------------------------------------------------
+# add micu los to demographics
+tmp.micu <- semi_join(tmp.micu, pts.include, by = "pie.id") %>%
+    mutate(unit.length.stay = as.numeric(unit.length.stay)) 
 
-tmp.micu.admit <- tmp.locations %>%
-    filter(pie.id %in% pts.include$pie.id,
-           location == micu) %>%
-    mutate(leave = get_depart(depart, calc.depart))
+data.demographics <- inner_join(tidy.demographics, 
+                                select(tmp.micu, pie.id, unit.length.stay), 
+                                by = "pie.id") %>%
+    select(-(visit.type:facility))
 
-tmp.los <- tmp.micu.admit %>%
-    select(pie.id, unit.los)
+rm(tidy.demographics)
 
-# vent duration ------------------------------------------------------------
-
-tmp.vent.duration <- tmp.vent %>%
-    filter(pie.id %in% pts.include$pie.id) %>%
+# add vent duration to demographics
+tmp.vent.duration <- semi_join(tmp.vent, pts.include, by = "pie.id") %>%
     group_by(pie.id) %>%
     summarize(vent.duration = sum(vent.duration))
 
-data.demograph <- data.demograph %>%
-    inner_join(tmp.los, by = "pie.id") %>%
-    inner_join(tmp.vent.duration, by = "pie.id")
+data.demographics <- inner_join(data.demographics, tmp.vent.duration, 
+                                by = "pie.id")
 
-# height and weight --------------------------------------------------------
+# add measurements to demographics
+raw.measures <- read_edw_data(data.dir, "measures")
 
-tmp.weight <- raw.height.weight %>%
-    filter(pie.id %in% pts.include$pie.id,
-           event == "Weight",
-           unit == "kg") %>%
+tmp.measure <- semi_join(raw.measures, pts.include, by = "pie.id") %>%
+    filter(measure == "Weight",
+           measure.units == "kg") %>%
     group_by(pie.id) %>%
-    arrange(event.datetime) %>%
-    summarize(weight = first(result))
+    arrange(measure.datetime) %>%
+    summarize(weight = first(measure.result))
 
-tmp.height <- raw.height.weight %>%
-    filter(pie.id %in% pts.include$pie.id,
-           event == "Height",
-           unit == "cm") %>%
+data.demographics <- inner_join(data.demographics, tmp.measure, by = "pie.id")
+
+tmp.measure <- semi_join(raw.measures, pts.include, by = "pie.id") %>%
+    filter(measure == "Height",
+           measure.units == "cm") %>%
     group_by(pie.id) %>%
-    arrange(event.datetime) %>%
-    summarize(height = first(result))
+    arrange(measure.datetime) %>%
+    summarize(height = first(measure.result))
 
-data.demograph <- data.demograph %>%
-    inner_join(tmp.weight, by = "pie.id") %>%
-    inner_join(tmp.height, by = "pie.id")
+data.demographics <- inner_join(data.demographics, tmp.measure, by = "pie.id")
 
-# PMH ----------------------------------------------------------------------
+rm(raw.measures, tmp.measure)
 
-ref.pmh.codes <- read.csv("Lookup/pmh_codes.csv", colClasses = "character")
+# PMH ----
+ref.pmh.codes <- read_data(lookup.dir, "pmh_codes.csv")
 
 tmp.pmh.codes <- icd9_lookup(ref.pmh.codes) %>%
     ungroup %>%
