@@ -2,31 +2,12 @@
 
 source("0-library.R")
 
-## read in the raw dosing service data files and join them, tidy the variables
-pts.identified <- list.files("Screen", pattern = "^micu_patients", full.names = TRUE) %>%
-    lapply(read.csv, colClasses="character") %>%
-    bind_rows %>%
-    transmute(pie.id = PowerInsight.Encounter.Id,
-              unit.from = factor(Person.Location...Nurse.Unit..From., exclude = ""),
-              admit.type = factor(Admit.Type),
-              discharge.datetime = ymd_hms(Discharge.Date...Time)) 
+pts.identified <- read_edw_data(screen.dir, "patients")
 
-# using package readr
-# library(readr)
-# test <- list.files("Screen", pattern="^micu_patients", full.names=TRUE) %>%
-#     lapply(read_csv, col_types = cols(col_character(), col_character(), 
-#                                       col_character(), col_number(), 
-#                                       col_factor(), col_datetime("%Y/%m/%d %H:%M:%S"))) %>%
-#     bind_rows
-    
 pts.screen <- pts.identified %>%
-    filter(discharge.datetime < mdy("9/1/2015")) %>%
-    select(pie.id) %>%
-    distinct
+    filter(discharge.datetime < mdy("9/1/2015"),
+           age >= 18) %>%
+    distinct(pie.id)
 
-## split the patients up into groups
-edw.pie <- split(pts.screen$pie.id, ceiling(seq_along(pts.screen$pie.id) / 500))
-## combine the id's in each group into a string, separated by semi-colon
-edw.pie <- lapply(edw.pie, str_c, collapse = ";")
-
+edw.pie <- concat_encounters(pts.screen$pie.id, 750)
 print(edw.pie)

@@ -16,6 +16,7 @@ library(MESS)
 micu <- "Cullen 2 E Medical Intensive Care Unit"
 
 # set the directory containing the data
+screen.dir <- "Screen"
 data.dir <- "Data"
 export.dir <- "Export"
 analysis.dir <- "Analysis"
