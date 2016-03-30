@@ -5,91 +5,63 @@ source("0-library.R")
 # locations ----
 raw.locations <- read_edw_data(exclude.dir, "locations")
 
-tmp.locations <- raw.locations %>%
-    group_by(pie.id) %>%
-    arrange(arrive.datetime) %>%
-    mutate(diff.unit = ifelse(is.na(unit.to) | is.na(lag(unit.to)) | 
-                                  unit.to != lag(unit.to), TRUE, FALSE),
-           unit.count = cumsum(diff.unit)) %>%
-    group_by(pie.id, unit.count) %>%
-    summarize(location = first(unit.to),
-              arrive.datetime = first(arrive.datetime),
-              depart.recorded = last(depart.datetime)) %>%
-    mutate(depart.calculated = lead(arrive.datetime)) %>%
-    rowwise %>%
-    mutate(depart.datetime = get_depart(depart.recorded, depart.calculated),
-           unit.length.stay = difftime(depart.datetime, arrive.datetime, units = "days")) %>%
-    select(-depart.recorded, -depart.calculated) %>%
-    ungroup 
+# determine the location history by hospital unit
+tmp.locations <- tidy_data("locations", unit.data = raw.locations)
 
-## remove patients with more than one ICU admission
-# combines multiple rows of data when the patient didn't leave ICU
+# remove patients with more than one ICU admission
 excl.mult.icu <- tmp.locations %>%
+    group_by(pie.id) %>%
     filter(location == micu) %>%
     summarize(count.icu = n()) %>%
     filter(count.icu > 1)
     
-pts.include <- pts.identified %>%
-    filter(pie.id %in% pts.eligible$pie.id,
-           !(pie.id %in% excl.mult.icu$pie.id)) %>%
-    group_by(pie.id) %>%
-    summarize(admit.type = first(admit.type),
-              discharge.datetime = first(discharge.datetime))
+pts.include <- anti_join(pts.eligible, excl.mult.icu, by = "pie.id") 
 
-## exclude patients who came from another facility
-excl.transfer <- pts.include %>%
-    filter(admit.type == "Direct") %>%
-    select(pie.id) %>%
-    distinct
+# transfers ----
+raw.facility <- read_edw_data(exclude.dir, "facility")
 
-pts.include <- filter(pts.include, !(pie.id %in% excl.transfer$pie.id))
+excl.transfer <- inner_join(raw.facility, pts.include, by = "pie.id") %>%
+    filter(admit.type == "Direct") 
 
-## exclude patients who came from another ICU
-tmp.icu <- c("Hermann 3 Shock Trauma Intensive Care Unit", 
+pts.include <- anti_join(pts.include, excl.transfer, by = "pie.id") 
+
+# icu stay ----
+ref.icu <- c("Hermann 3 Shock Trauma Intensive Care Unit", 
              "Hermann 3 Transplant Surgical ICU",
              "HVI Cardiac Care Unit",
              "HVI Cardiovascular Intensive Care Unit",
              "Jones 7 J Elective Neuro ICU",
              "Jones 8 W Burn Unit")
 
-# excl.icu <- pts.include %>%
-#     filter(unit.from %in% tmp.icu) %>%
-#     select(pie.id) %>%
-#     distinct
-tmp.icu.arrive <- tmp.locations %>%
-    filter(pie.id %in% pts.include$pie.id,
-           location == "Cullen 2 E Medical Intensive Care Unit") %>%
-    rename(micu.arrive = arrival) %>%
+tmp.icu.arrive <- inner_join(tmp.locations, pts.include, by = "pie.id") %>%
+    filter(location == micu) %>%
+    rename(micu.arrive = arrive.datetime) %>%
     select(pie.id, micu.arrive)
 
-excl.icu <- tmp.locations %>%
-    filter(pie.id %in% pts.include$pie.id) %>%
+# remove any patients who were in another icu before the micu
+excl.icu <- inner_join(tmp.locations, pts.include, by = "pie.id") %>%
     left_join(tmp.icu.arrive, by = "pie.id") %>%
-    filter(location %in% tmp.icu,
-           arrival < micu.arrive) %>%
-    select(pie.id) %>%
-    distinct
+    filter(location %in% ref.icu,
+           arrive.datetime < micu.arrive) %>%
+    distinct(pie.id) 
 
-pts.include <- filter(pts.include, !(pie.id %in% excl.icu$pie.id))
+pts.include <- anti_join(pts.include, excl.icu, by = "pie.id") 
 
-## remove patients with MICU stay < 1 day
-excl.los <- tmp.locations %>%
-    filter(pie.id %in% pts.include$pie.id,
-           location == micu,
-           unit.los < 1) %>%
-    select(pie.id) %>%
-    distinct
+# remove patients with MICU stay < 1 day
+excl.los <- inner_join(tmp.locations, pts.include, by = "pie.id") %>%
+    filter(location == micu,
+           unit.length.stay < 1)
 
-pts.include <- filter(pts.include, !(pie.id %in% excl.los$pie.id))
+pts.include <- anti_join(pts.include, excl.los, by = "pie.id")
 
-## exclude if any of these: cisatracurium, rocuronium, or vecuronium
-excl.meds <- filter(raw.meds.incl, pie.id %in% pts.include$pie.id,
-                    str_detect(med, "cisatracurium|rocuronium|vecuronium"),
-                    rate.units != "") %>%
-    select(pie.id) %>%
-    distinct
+# paralytics ----
+raw.meds.excl <- read_edw_data(exclude.dir, "paralytics", "meds_continuous")
 
-pts.include <- filter(pts.include, !(pie.id %in% excl.meds$pie.id))
+excl.meds <- filter(raw.meds.excl, med.rate.units != "") %>%
+    distinct(pie.id)
+
+pts.include <- anti_join(pts.include, excl.meds, by = "pie.id")
+
 
 ## labs which were included in query
 levels.labs <- c("ur.preg", "ser.preg")
